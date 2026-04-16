@@ -61,3 +61,7 @@ site/package-lock.json
 .zencoder/
 .playwright-cli/
 openclaw/package-lock.json
+
+# Python bytecode cache
+__pycache__/
+*.pyc
