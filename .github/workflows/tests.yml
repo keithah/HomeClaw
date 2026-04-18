@@ -39,8 +39,15 @@ jobs:
     name: Version Consistency
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check all version sources agree
-        run: ./scripts/check-versions.sh
+      - uses: actions/checkout@v4
+      - uses: omarshahine/version-consistency-action@v1
+        with:
+          sets: |
+            - name: "HomeClaw plugin"
+              sources:
+                - package.json:.version
+                - openclaw/package.json:.version
+                - openclaw/openclaw.plugin.json:.version
+                - mcp-server/package.json:.version
+                - .claude-plugin/plugin.json:.version
+                - .claude-plugin/marketplace.json:.plugins[0].version
