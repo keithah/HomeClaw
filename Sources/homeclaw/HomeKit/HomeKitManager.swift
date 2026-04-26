@@ -152,6 +152,7 @@ final class HomeKitManager: NSObject, Observable {
         case triggerNotFound(String)
         case sceneNotFound(String)
         case serviceNotFound(String)
+        case invalidArgument(String)
 
         var errorDescription: String? {
             switch self {
@@ -169,6 +170,7 @@ final class HomeKitManager: NSObject, Observable {
             case .triggerNotFound(let id): "Automation not found: \(id)"
             case .sceneNotFound(let id): "Scene not found: \(id)"
             case .serviceNotFound(let detail): "Service not found: \(detail)"
+            case .invalidArgument(let detail): "Invalid argument: \(detail)"
             }
         }
     }
@@ -1022,6 +1024,105 @@ final class HomeKitManager: NSObject, Observable {
         return ["name": triggerName, "home": home.name, "dry_run": false] as [String: Any]
     }
 
+    /// Mutates the action sets attached to an existing automation trigger.
+    /// Resolves scene names/UUIDs to HMActionSet, then adds/removes them.
+    /// Preserves the trigger's UUID — physical buttons / motion sensors keep firing it.
+    func updateAutomationActionSets(
+        id: String,
+        addSceneIDs: [String],
+        removeSceneIDs: [String],
+        homeID: String? = nil,
+        dryRun: Bool = false
+    ) async throws -> [String: Any] {
+        await waitForReady()
+        let home = try resolveHome(homeID: homeID)
+        guard let trigger = findTrigger(id: id, in: home) else {
+            throw ControlError.triggerNotFound(id)
+        }
+
+        var resolvedAdd: [HMActionSet] = []
+        var resolvedRemove: [HMActionSet] = []
+        var warnings: [String] = []
+
+        for nameOrID in addSceneIDs {
+            if let actionSet = home.actionSets.first(where: {
+                $0.uniqueIdentifier.uuidString.caseInsensitiveCompare(nameOrID) == .orderedSame
+                    || $0.name.localizedCaseInsensitiveCompare(nameOrID) == .orderedSame
+            }) {
+                if trigger.actionSets.contains(actionSet) {
+                    warnings.append("Already attached, skipping add: \(actionSet.name)")
+                } else {
+                    resolvedAdd.append(actionSet)
+                }
+            } else {
+                warnings.append("Scene not found (add): \(nameOrID)")
+            }
+        }
+
+        for nameOrID in removeSceneIDs {
+            if let actionSet = trigger.actionSets.first(where: {
+                $0.uniqueIdentifier.uuidString.caseInsensitiveCompare(nameOrID) == .orderedSame
+                    || $0.name.localizedCaseInsensitiveCompare(nameOrID) == .orderedSame
+            }) {
+                resolvedRemove.append(actionSet)
+            } else {
+                warnings.append("Scene not attached to this automation (remove): \(nameOrID)")
+            }
+        }
+
+        let summary: [String: Any] = [
+            "id": trigger.uniqueIdentifier.uuidString,
+            "name": trigger.name,
+            "home": home.name,
+            "before": trigger.actionSets.map { $0.name },
+            "to_add": resolvedAdd.map { $0.name },
+            "to_remove": resolvedRemove.map { $0.name },
+            "warnings": warnings,
+        ]
+
+        // Refuse operations that would leave the trigger with zero scenes attached.
+        // HomeKit doesn't define behavior for an empty actionSets collection — the
+        // trigger fires but does nothing, and may become hard to manage in the Home
+        // app. Callers wanting to retire a trigger should delete it instead.
+        let resultingCount = trigger.actionSets.count + resolvedAdd.count - resolvedRemove.count
+        guard resultingCount > 0 else {
+            throw ControlError.invalidArgument(
+                "Operation would leave trigger '\(trigger.name)' with no attached scenes. Delete the automation instead, or attach a replacement scene.")
+        }
+
+        if dryRun {
+            var dry = summary
+            dry["dry_run"] = true
+            return dry
+        }
+
+        // Add first so we never leave the trigger with zero action sets midway.
+        for actionSet in resolvedAdd {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                trigger.addActionSet(actionSet) { error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume() }
+                }
+            }
+        }
+        for actionSet in resolvedRemove {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                trigger.removeActionSet(actionSet) { error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume() }
+                }
+            }
+        }
+
+        AppLogger.homekit.info(
+            "[\(home.name)] Rewired automation '\(trigger.name)': +\(resolvedAdd.count) -\(resolvedRemove.count)")
+
+        var result = summary
+        result["dry_run"] = false
+        result["after"] = trigger.actionSets.map { $0.name }
+        return result
+    }
+
     func enableAutomation(
         id: String,
         enabled: Bool,
@@ -1269,6 +1370,164 @@ final class HomeKitManager: NSObject, Observable {
             "name": actionSet.name,
             "home": home.name,
             "action_count": addedCount,
+            "warnings": warnings,
+        ] as [String: Any]
+    }
+
+    /// Replaces the actions on an existing scene in-place, preserving its UUID
+    /// so any automations that reference the scene continue to work.
+    /// Lookup by UUID first, then by case-insensitive name.
+    func updateScene(
+        nameOrID: String,
+        homeName: String? = nil,
+        actions: [[String: String]],
+        dryRun: Bool = false
+    ) async throws -> [String: Any] {
+        await waitForReady()
+        let targetHomes = filteredHomes(homeID: homeName)
+
+        var foundActionSet: HMActionSet?
+        var foundHome: HMHome?
+        for home in targetHomes {
+            if let actionSet = home.actionSets.first(where: {
+                $0.uniqueIdentifier.uuidString.caseInsensitiveCompare(nameOrID) == .orderedSame
+                    || $0.name.localizedCaseInsensitiveCompare(nameOrID) == .orderedSame
+            }) {
+                foundActionSet = actionSet
+                foundHome = home
+                break
+            }
+        }
+        guard let actionSet = foundActionSet, let home = foundHome else {
+            throw ControlError.accessoryNotFound("Scene not found: \(nameOrID)")
+        }
+
+        var resolvedActions: [(accessory: HMAccessory, characteristic: HMCharacteristic, value: Any)] = []
+        var warnings: [String] = []
+
+        for action in actions {
+            guard let accessoryID = action["accessory"],
+                  let property = action["property"],
+                  let valueStr = action["value"]
+            else {
+                warnings.append("Skipping action with missing fields: \(action)")
+                continue
+            }
+
+            let accessory: HMAccessory
+            if let found = home.accessories.first(where: {
+                $0.uniqueIdentifier.uuidString.caseInsensitiveCompare(accessoryID) == .orderedSame
+            }) {
+                accessory = found
+            } else {
+                let roomName = action["room"]
+                guard let found = findAccessoryByName(accessoryID, room: roomName, in: home) else {
+                    warnings.append("Accessory not found: \(accessoryID)" + (roomName.map { " in \($0)" } ?? ""))
+                    continue
+                }
+                accessory = found
+            }
+
+            guard let characteristic = findCharacteristicByDescription(on: accessory, property: property) else {
+                warnings.append("Characteristic '\(property)' not found on \(accessory.name)")
+                continue
+            }
+
+            guard let parsedValue = parseActionValue(valueStr, property: property) else {
+                warnings.append("Cannot parse value '\(valueStr)' for \(property) on \(accessory.name)")
+                continue
+            }
+
+            resolvedActions.append((accessory, characteristic, parsedValue))
+        }
+
+        if dryRun {
+            return [
+                "dry_run": true,
+                "name": actionSet.name,
+                "id": actionSet.uniqueIdentifier.uuidString,
+                "home": home.name,
+                "existing_action_count": actionSet.actions.count,
+                "resolved_actions": resolvedActions.count,
+                "warnings": warnings,
+                "actions": resolvedActions.map { action in
+                    [
+                        "accessory": action.accessory.name,
+                        "room": action.accessory.room?.name ?? "Default Room",
+                        "characteristic": CharacteristicMapper.name(for: action.characteristic.characteristicType),
+                        "value": "\(action.value)",
+                    ] as [String: String]
+                },
+            ] as [String: Any]
+        }
+
+        // Refuse to wipe a scene when caller asked for actions but every one
+        // failed to resolve. (Empty input is a legitimate clear-all request.)
+        if !actions.isEmpty && resolvedActions.isEmpty {
+            throw ControlError.invalidArgument(
+                "All \(actions.count) action(s) failed to resolve; scene '\(actionSet.name)' not modified.")
+        }
+
+        // Snapshot the pre-existing actions BEFORE any mutation. Used to drive
+        // the remove loop below. We can't rely on `actionSet.actions.subtracting(addedActions)`
+        // post-add because HomeKit may wrap/replace the HMAction we provide
+        // before storing it; the reference we hold in `addedActions` may not
+        // match the one in `actionSet.actions` by identity, and HMAction is
+        // hashed/equated as NSObject (reference equality).
+        let oldActions = Array(actionSet.actions)
+
+        // Add new actions BEFORE removing the old ones. If `addAction` throws
+        // partway through, the original actions are still attached, so the
+        // scene retains its prior behavior (and the partial adds will trigger
+        // alongside the originals — redundant but not destructive). We then
+        // best-effort clean up any partial adds before propagating the error.
+        var addedActions: [HMAction] = []
+        do {
+            for resolved in resolvedActions {
+                let writeAction = HMCharacteristicWriteAction(
+                    characteristic: resolved.characteristic,
+                    targetValue: resolved.value as! NSCopying & NSObjectProtocol
+                )
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    actionSet.addAction(writeAction) { error in
+                        if let error { continuation.resume(throwing: error) }
+                        else { continuation.resume() }
+                    }
+                }
+                addedActions.append(writeAction)
+            }
+        } catch {
+            // Roll back the partial adds so the scene returns to its prior state.
+            for action in addedActions {
+                try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    actionSet.removeAction(action) { _ in continuation.resume() }
+                }
+            }
+            throw error
+        }
+        let addedCount = addedActions.count
+
+        // Remove only the pre-snapshotted originals.
+        for action in oldActions {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                actionSet.removeAction(action) { error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume() }
+                }
+            }
+        }
+        let removedCount = oldActions.count
+
+        AppLogger.homekit.info(
+            "[\(home.name)] Updated scene '\(actionSet.name)': added \(addedCount), removed \(removedCount)")
+
+        return [
+            "updated": true,
+            "name": actionSet.name,
+            "id": actionSet.uniqueIdentifier.uuidString,
+            "home": home.name,
+            "removed_action_count": removedCount,
+            "added_action_count": addedCount,
             "warnings": warnings,
         ] as [String: Any]
     }
