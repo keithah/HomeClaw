@@ -14,7 +14,11 @@ from datetime import datetime, timedelta, timezone
 def _load_env_file(path):
     if not os.path.exists(path):
         return
-    with open(path) as f:
+    # Use errors='replace' so a single non-UTF-8 byte in any unrelated value
+    # (e.g. an Unsplash access key copy-pasted with a smart quote) does not
+    # crash the loader. We only consume ASC_* / HOMEKIT_* keys — other lines
+    # tolerating a U+FFFD replacement char in their value is harmless.
+    with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):

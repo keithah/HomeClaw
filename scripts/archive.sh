@@ -24,7 +24,11 @@ green() { printf "\033[32m✓\033[0m"; }
 # ─── Derive version and build number ─────────────────────────
 
 GIT_TAG=$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "v0.0.1")
+# Tags follow the convention v{version}+{build} (e.g. v1.0.0+136). Strip the
+# +build suffix so MARKETING_VERSION is a valid CFBundleShortVersionString
+# (Apple requires max 3 numeric components).
 MARKETING_VERSION="${GIT_TAG#v}"
+MARKETING_VERSION="${MARKETING_VERSION%+*}"
 
 BUILD_NUMBER_FILE="$PROJECT_ROOT/.build-number"
 if [[ -f "$BUILD_NUMBER_FILE" ]]; then
