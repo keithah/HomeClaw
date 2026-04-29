@@ -65,3 +65,4 @@ openclaw/package-lock.json
 # Python bytecode cache
 __pycache__/
 *.pyc
+openclaw/reports/
