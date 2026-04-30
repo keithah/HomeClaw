@@ -61,6 +61,11 @@ FILE="$PROJECT_ROOT/openclaw/package.json"
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$FILE"
 update_file "$FILE" "OpenClaw plugin (homeclaw)"
 
+# 4b. openclaw/openclaw.plugin.json
+FILE="$PROJECT_ROOT/openclaw/openclaw.plugin.json"
+sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$FILE"
+update_file "$FILE" "OpenClaw plugin manifest"
+
 # 5. mcp-server/package.json
 FILE="$PROJECT_ROOT/mcp-server/package.json"
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$FILE"
