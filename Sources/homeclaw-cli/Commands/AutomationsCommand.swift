@@ -167,6 +167,9 @@ struct CreateAutomation: ParsableCommand {
     @Option(name: .long, help: "Button index for multi-button accessories (e.g., 1 or 2). For button triggers only.")
     var serviceIndex: Int?
 
+    @Option(name: .long, help: "Comma-separated weekdays the automation may fire on: mon,tue,wed,thu,fri,sat,sun (or numeric 1-7 where 1=Sun). When omitted, the automation fires every day.")
+    var days: String?
+
     @Option(name: .long, help: "Home name or UUID (defaults to primary home)")
     var home: String?
 
@@ -229,6 +232,27 @@ struct CreateAutomation: ParsableCommand {
         }
 
         if let serviceIndex { args["service_index"] = serviceIndex }
+
+        if let days {
+            let dayMap: [String: Int] = [
+                "sun": 1, "sunday": 1,
+                "mon": 2, "monday": 2,
+                "tue": 3, "tuesday": 3,
+                "wed": 4, "wednesday": 4,
+                "thu": 5, "thursday": 5,
+                "fri": 6, "friday": 6,
+                "sat": 7, "saturday": 7,
+            ]
+            var weekdays: [Int] = []
+            for raw in days.split(separator: ",") {
+                let key = raw.trimmingCharacters(in: .whitespaces).lowercased()
+                if let n = dayMap[key] { weekdays.append(n) }
+                else if let n = Int(key), (1...7).contains(n) { weekdays.append(n) }
+                else { throw ValidationError("Invalid day '\(raw)'. Use mon/tue/wed/thu/fri/sat/sun or 1-7 (1=Sun)") }
+            }
+            args["weekdays"] = Array(Swift.Set(weekdays)).sorted()
+        }
+
         if let home { args["home_id"] = home }
 
         let response = try SocketClient.sendAny(command: "create_automation", args: args)
@@ -278,6 +302,9 @@ struct CreateAutomation: ParsableCommand {
             } else if let sceneName = result["scene"] as? String {
                 print("  Scene: \(sceneName)")
             }
+            if let weekdays = result["weekdays"] as? [Int], !weekdays.isEmpty {
+                print("  Days: \(formatWeekdays(weekdays))")
+            }
         } else {
             if isInline {
                 print("Created automation '\(autoName)' with \(actionCount ?? 0) inline action(s)")
@@ -287,7 +314,16 @@ struct CreateAutomation: ParsableCommand {
                 print("Created automation '\(autoName)'")
                 print("  \(triggerDescription) → \(sceneName)")
             }
+            if let weekdays = result["weekdays"] as? [Int], !weekdays.isEmpty {
+                print("  Days: \(formatWeekdays(weekdays))")
+            }
         }
+    }
+
+    /// Format an array of HomeKit weekday numbers (1=Sun ... 7=Sat) as a comma-separated label.
+    private func formatWeekdays(_ weekdays: [Int]) -> String {
+        let names = ["", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        return weekdays.compactMap { (1...7).contains($0) ? names[$0] : nil }.joined(separator: ",")
     }
 }
 
