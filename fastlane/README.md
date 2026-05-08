@@ -71,6 +71,14 @@ Capture App Store screenshots via XCUITest in demo mode
 
 Upload screenshots from fastlane/screenshots/ to App Store Connect
 
+### ios upload_metadata
+
+```sh
+[bundle exec] fastlane ios upload_metadata
+```
+
+Upload App Store listing metadata (description, keywords, URLs, etc.)
+
 ### ios status
 
 ```sh

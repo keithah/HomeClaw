@@ -334,6 +334,23 @@ platform :ios do
     )
   end
 
+  desc "Upload App Store listing metadata (description, keywords, URLs, etc.)"
+  # Pushes everything in `fastlane/metadata/` to ASC's Mac App Store listing.
+  # Skips binary + screenshots — use `upload_screenshots` or `beta` for those.
+  lane :upload_metadata do
+    api_key = asc_api_key
+    deliver(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      platform: "osx",
+      skip_binary_upload: true,
+      skip_metadata: false,
+      skip_screenshots: true,
+      force: true,
+      run_precheck_before_submit: false
+    )
+  end
+
   desc "Show TestFlight status for the latest (or specified) build"
   lane :status do |options|
     asc_api_key
