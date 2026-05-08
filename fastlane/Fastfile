@@ -316,11 +316,15 @@ platform :ios do
   end
 
   desc "Upload screenshots from fastlane/screenshots/ to App Store Connect"
+  # HomeClaw is Mac Catalyst — screenshots target the Mac App Store listing,
+  # not iOS. Without `platform: 'osx'` deliver hits the iOS listing and
+  # errors with "Could not find a version to edit for app … for 'IOS'".
   lane :upload_screenshots do
     api_key = asc_api_key
     deliver(
       api_key: api_key,
       app_identifier: BUNDLE_ID,
+      platform: "osx",
       skip_binary_upload: true,
       skip_metadata: true,
       skip_screenshots: false,
