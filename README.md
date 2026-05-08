@@ -754,9 +754,35 @@ Your Apple Developer Team ID is required, provided via `.env.local`, `--team-id`
 
 ### Archiving for App Store / TestFlight
 
+The release pipeline is driven by [fastlane](https://fastlane.tools). Lanes:
+
 ```bash
-scripts/archive.sh
-# Then open in Xcode Organizer to distribute:
+fastlane archive       # Build a release .xcarchive (no upload)
+fastlane upload        # Archive + upload to App Store Connect (no external submission)
+fastlane beta          # Archive + upload + submit to external TestFlight (full release loop)
+fastlane status        # Show TestFlight processing/external state for the latest build
+fastlane submit_only build:NNN   # Recovery: submit an already-uploaded build
+fastlane auth_check    # Validate ASC API key setup
+
+# Pass tester notes (used by `beta` and `submit_only`):
+fastlane beta notes_file:/tmp/notes.txt
+fastlane beta notes:"Bug fixes and improvements"
+
+# App Store screenshot pipeline (XCUITest-driven, demo mode, zero personal data):
+fastlane screenshots          # Run HomeClawUITests in demo mode, extract PNGs to fastlane/screenshots/en-US/
+fastlane upload_screenshots   # Push screenshots to App Store Connect
+```
+
+The screenshot pipeline uses **demo mode** — `HomeKitManager.isDemoMode` (gated on `--ui-test-demo` launch arg or `HOMECLAW_DEMO=1`) bypasses HomeKit and serves synthetic data from `Sources/homeclaw/HomeKit/DemoFixtures.swift`. Real HomeKit data is never read or shown. Requires `xcparse` (`brew install chargepoint/xcparse/xcparse`).
+
+Known follow-up: the menu-bar dropdown is `NSMenu` (AppKit), so it can't be auto-rendered via SwiftUI `ImageRenderer`. Capture it manually with `screencapture -x` of the running demo-mode app, or build a SwiftUI mockup of the dropdown.
+
+Auth uses an App Store Connect API key from `~/.secrets.env` (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH`). Team ID comes from `.env.local` (`HOMEKIT_TEAM_ID`).
+
+To open the archive in Xcode Organizer instead of uploading:
+
+```bash
+fastlane archive
 open '.build/archives/HomeClaw.xcarchive'
 ```
 
@@ -823,8 +849,11 @@ Sources/
 Resources/                 Info.plist, entitlements, app icons
 scripts/
   build.sh                 Build, sign, and install
-  archive.sh               Archive for App Store / TestFlight
   bump-version.sh          Update version across source files
+fastlane/
+  Fastfile                 Release pipeline: archive, upload, beta (TestFlight)
+  Appfile                  Bundle ID + team ID
+  Gymfile                  Mac Catalyst archive defaults
 mcp-server/                Node.js stdio MCP server (wraps homeclaw-cli)
 openclaw/                  OpenClaw plugin (HomeClaw)
   skills/homekit/          HomeKit skill with full characteristic reference
