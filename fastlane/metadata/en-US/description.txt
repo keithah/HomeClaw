@@ -1,0 +1,30 @@
+Apple HomeKit has no public API, no CLI, and no way to talk to AI assistants. HomeClaw fixes that.
+
+HomeClaw is a Mac menu bar app that exposes your HomeKit accessories through a command-line tool, an MCP server (for Claude Desktop and any MCP-compatible AI assistant), and plugins for Claude Code and OpenClaw. Everything runs locally — no cloud account, no third-party service, no telemetry.
+
+EVERYTHING YOU NEED
+
+• HomeKit Access — Control accessories, scenes, and automations from outside the Home app. The only way to script HomeKit on Mac.
+• 8 MCP Tools — Accessories, rooms, scenes, device maps, events, webhooks, and config. Drop-in tooling for any MCP client.
+• 3 Client Options — Use the Claude Desktop MCP server, the OpenClaw plugin, or the CLI directly. Pick what fits your workflow.
+• LLM Device Map — Purpose-built map with semantic types, auto-generated aliases, and state summaries so AI assistants understand your home instantly.
+• Webhooks — Push HomeKit events to your own endpoints with configurable triggers, delivery modes, and a tiered circuit breaker for reliability.
+• Event Log — Full history of characteristic changes, scene triggers, and control actions. Query by time, type, or accessory.
+
+ARCHITECTURE
+
+HomeClaw is a unified Mac Catalyst app with a native macOS menu bar. HomeKit access is in-process and direct — no IPC overhead, no helper daemons. The CLI, MCP server, and plugins all talk to the app via a local Unix domain socket.
+
+PRIVACY FIRST
+
+All HomeKit data stays on your Mac. HomeClaw doesn't collect, transmit, or store anything outside your machine. No analytics, no telemetry, no account, no third-party SDKs.
+
+OPEN SOURCE
+
+HomeClaw is MIT-licensed. Source code, documentation, and issue tracker live at github.com/omarshahine/HomeClaw — you can verify exactly what the app does.
+
+REQUIREMENTS
+
+• Mac running macOS 15 (Sequoia) or later
+• An iCloud account signed in with HomeKit data
+• Optional: Node.js for the bundled MCP server, Claude Desktop or any MCP-compatible AI assistant

@@ -1,0 +1,14 @@
+HomeClaw is a Mac menu bar app that exposes Apple HomeKit data through three interfaces: a bundled CLI (`homeclaw-cli`), a local stdio MCP server for AI assistants, and plugins for Claude Code and OpenClaw.
+
+How to test:
+
+1. Sign in to iCloud with an account that has HomeKit data (any home with at least one accessory works).
+2. Launch HomeClaw. The icon appears in the menu bar.
+3. Grant HomeKit access on first launch (Settings → Privacy & Security → HomeKit).
+4. Click the menu bar icon to see homes, rooms, and accessories from your HomeKit setup.
+5. Open Settings (from the menu bar) to verify connection state, configure integrations, and view the event log.
+6. Optional CLI verification: open Terminal and run `/Applications/HomeClaw.app/Contents/MacOS/homeclaw-cli list` to enumerate accessories.
+
+The screenshots submitted with this build show the app running in a demo mode (`--ui-test-demo` launch arg) that serves a synthetic home — this is purely to avoid leaking the developer's real HomeKit data in marketing assets. End users never see demo mode.
+
+All processing is local. The app does not require any account, does not collect telemetry, and does not contact any server unless the user explicitly configures a webhook endpoint.

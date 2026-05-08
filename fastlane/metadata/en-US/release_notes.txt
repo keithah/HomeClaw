@@ -1,0 +1,1 @@
+Internal tooling improvements: migrated the release pipeline to fastlane and added App Store screenshot infrastructure with full demo mode (no personal HomeKit data ever appears in store assets). No user-visible changes vs. the previous build.

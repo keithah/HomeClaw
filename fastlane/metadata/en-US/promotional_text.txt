@@ -1,0 +1,1 @@
+Control HomeKit from the command line, Claude Code, or any MCP-compatible AI assistant. Everything runs locally on your Mac — no cloud, no account, no telemetry.

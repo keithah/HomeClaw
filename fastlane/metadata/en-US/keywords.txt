@@ -1,0 +1,1 @@
+homekit,smart home,mcp,cli,automation,claude,ai,homekit api,menu bar,scripting
