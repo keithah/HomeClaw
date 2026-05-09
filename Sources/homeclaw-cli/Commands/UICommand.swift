@@ -1,6 +1,8 @@
 import ArgumentParser
 import Foundation
+#if !APP_STORE
 import SwiftTUI
+#endif
 
 /// `homeclaw-cli ui` — full-screen interactive HomeKit browser.
 ///
@@ -29,11 +31,27 @@ struct Ui: ParsableCommand {
     )
 
     func run() throws {
+        #if APP_STORE
+        // SwiftTUI requires raw terminal mode via tcsetattr, which the App
+        // Sandbox blocks silently — the TUI renders but receives no keys.
+        // Mac App Store distribution requires sandboxing on every bundled
+        // executable (ASC error 90296), so the TUI is excluded from this build.
+        let stderr = FileHandle.standardError
+        stderr.write(Data("homeclaw-cli ui: not available in this build.\n\n".utf8))
+        stderr.write(Data("The interactive TUI requires raw terminal mode, which is blocked\n".utf8))
+        stderr.write(Data("by the App Sandbox required for Mac App Store distribution. To use\n".utf8))
+        stderr.write(Data("the TUI, build from source:\n\n".utf8))
+        stderr.write(Data("    git clone https://github.com/omarshahine/HomeClaw.git\n".utf8))
+        stderr.write(Data("    cd HomeClaw && swift run homeclaw-cli ui\n".utf8))
+        throw ExitCode.failure
+        #else
         let initialRooms = try fetchRooms()
         let state = TUIHomeState(rooms: initialRooms)
         Application(rootView: HomeClawTUIView(state: state)).start()
+        #endif
     }
 
+    #if !APP_STORE
     private func fetchRooms() throws -> [RoomNode] {
         let response = try SocketClient.send(command: "list_rooms", args: nil)
         guard response.success else {
@@ -62,8 +80,10 @@ struct Ui: ParsableCommand {
             )
         }
     }
+    #endif
 }
 
+#if !APP_STORE
 // MARK: - Models (file-level so TUIHomeState can hold them)
 
 struct AccessoryNode: Identifiable {
@@ -422,3 +442,4 @@ struct HomeClawTUIView: View {
         return s + String(repeating: " ", count: width - count)
     }
 }
+#endif

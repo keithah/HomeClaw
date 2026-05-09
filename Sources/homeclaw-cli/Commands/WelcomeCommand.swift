@@ -51,8 +51,7 @@ struct Welcome: ParsableCommand {
 
         // Quick start
         print("  \(bold)Quick start:\(reset)")
-        let rows: [(String, String, String)] = [
-            ("homeclaw-cli", "ui",                     "Launch the interactive TUI"),
+        var rows: [(String, String, String)] = [
             ("homeclaw-cli", "list",                   "List homes, rooms, and accessories"),
             ("homeclaw-cli", "list --room Kitchen",    "Filter by room"),
             ("homeclaw-cli", "get \"Living Room\"",    "Read accessory state"),
@@ -66,6 +65,11 @@ struct Welcome: ParsableCommand {
             ("homeclaw-cli", "status",                 "Daemon + HomeKit + webhook status"),
             ("homeclaw-cli", "config",                 "View and edit config"),
         ]
+        #if !APP_STORE
+        // The TUI requires raw terminal mode (tcsetattr), which the App
+        // Sandbox blocks. Show the row only when the TUI is actually compiled.
+        rows.insert(("homeclaw-cli", "ui", "Launch the interactive TUI"), at: 0)
+        #endif
 
         // Compute width based on raw (un-styled) text so padding stays consistent.
         let cmdColumnWidth = rows
