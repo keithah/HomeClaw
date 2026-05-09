@@ -564,18 +564,34 @@ enum AccessoryModel {
     /// Flatten nested top-level AND compounds into a flat subpredicate list.
     /// Successive `updatePredicate` mutations (e.g. `add-condition` calls in a future PR)
     /// can produce AND-of-ANDs; treating those as a flat list keeps the decoder stable.
-    /// A single-condition predicate of shape `(char == X AND value == Y)` is a leaf — both
-    /// subs are NSComparisonPredicate, not compounds — so we keep it as one entry.
+    ///
+    /// The characteristic predicate `(characteristic == X AND value == Y)` is a leaf — both
+    /// subs are NSComparisonPredicate referencing an HMCharacteristic — so we keep it intact
+    /// for the decoder below. Any other AND (mixed comparisons + compounds, e.g. a single
+    /// weekday plus a characteristic conjunct, or auto-filled weekdays plus a sun-relative
+    /// time predicate) must be flattened so each conjunct can be decoded individually.
     private static func flattenTopAnd(_ p: NSPredicate, into out: inout [NSPredicate]) {
         guard let cmp = p as? NSCompoundPredicate, cmp.compoundPredicateType == .and else {
             out.append(p)
             return
         }
         let subs = cmp.subpredicates as? [NSPredicate] ?? []
-        if subs.allSatisfy({ $0 is NSCompoundPredicate }) {
-            for sub in subs { flattenTopAnd(sub, into: &out) }
-        } else {
+        if isCharacteristicLeaf(subs) {
             out.append(p)
+            return
+        }
+        for sub in subs { flattenTopAnd(sub, into: &out) }
+    }
+
+    /// True for the 2-sub AND of comparisons that HomeKit uses to express a single
+    /// characteristic predicate. Identified by an HMCharacteristic constant on either side.
+    private static func isCharacteristicLeaf(_ subs: [NSPredicate]) -> Bool {
+        guard subs.count == 2 else { return false }
+        let comparisons = subs.compactMap { $0 as? NSComparisonPredicate }
+        guard comparisons.count == 2 else { return false }
+        return comparisons.contains { cmp in
+            cmp.rightExpression.constantValue is HMCharacteristic
+                || cmp.leftExpression.constantValue is HMCharacteristic
         }
     }
 
