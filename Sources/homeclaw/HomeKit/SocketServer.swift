@@ -728,6 +728,30 @@ final class SocketServer: @unchecked Sendable {
                     }
                     timeConditions.append(tc)
                 }
+                // Distinguish "missing" from "present but invalid" so unparseable values
+                // (e.g. "300s", 300.5, true) return a validation error instead of silently
+                // creating an automation without auto-off.
+                let durationSeconds: Int?
+                if let raw = args["duration_seconds"] {
+                    // JSONSerialization bridges JSON booleans as __NSCFBoolean which casts
+                    // to Int(0/1); reject explicitly so `true` doesn't become a 1s auto-off.
+                    let isBool: Bool = {
+                        guard let nsNum = raw as? NSNumber else { return false }
+                        return CFGetTypeID(nsNum) == CFBooleanGetTypeID()
+                    }()
+                    let parsed: Int? = isBool
+                        ? nil
+                        : ((raw as? Int) ?? (raw as? String).flatMap(Int.init))
+                    guard let parsed, (1...86400).contains(parsed) else {
+                        return encodeResponse(
+                            success: false,
+                            error: "'duration_seconds' must be a positive integer between 1 and 86400 (24 hours)"
+                        )
+                    }
+                    durationSeconds = parsed
+                } else {
+                    durationSeconds = nil
+                }
                 result = try await hk.createAutomation(
                     name: name,
                     accessoryID: accessoryID,
@@ -740,6 +764,7 @@ final class SocketServer: @unchecked Sendable {
                     weekdays: weekdays,
                     conditions: conditions,
                     timeConditions: timeConditions,
+                    durationSeconds: durationSeconds,
                     homeID: args["home_id"] as? String,
                     dryRun: parseBool(args, key: "dry_run")
                 )

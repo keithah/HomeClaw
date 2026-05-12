@@ -880,6 +880,7 @@ final class HomeKitManager: NSObject, Observable {
         weekdays: [Int] = [],
         conditions: [[String: String]] = [],
         timeConditions: [TimeCondition] = [],
+        durationSeconds: Int? = nil,
         homeID: String? = nil,
         dryRun: Bool = false
     ) async throws -> [String: Any] {
@@ -1036,6 +1037,7 @@ final class HomeKitManager: NSObject, Observable {
                     result["characteristic"] = characteristic
                     result["trigger_value"] = triggerValue
                 }
+                if let durationSeconds { result["duration_seconds"] = durationSeconds }
                 return attachPredicateFields(result)
             }
 
@@ -1090,6 +1092,7 @@ final class HomeKitManager: NSObject, Observable {
                     result["characteristic"] = characteristic
                     result["trigger_value"] = triggerValue
                 }
+                if let durationSeconds { result["duration_seconds"] = durationSeconds }
                 return attachPredicateFields(result)
             }
 
@@ -1171,7 +1174,44 @@ final class HomeKitManager: NSObject, Observable {
             do {
                 try await homeKitAsync { trigger.updatePredicate(combinedPredicate, completionHandler: $0) }
             } catch {
-                // Cleanup orphaned trigger on predicate failure (no inline action set linked yet).
+                // Cleanup on predicate failure: remove the orphaned trigger AND the inline
+                // action set if we created one. (The action set exists in `home.actionSets`
+                // from Step 1's `addActionSet` call even though it's not yet linked to the
+                // trigger — without this removal it would persist as an orphaned scene tile.)
+                if isInlineActionSet {
+                    try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        home.removeActionSet(actionSet) { err in
+                            if let err { continuation.resume(throwing: err) }
+                            else { continuation.resume() }
+                        }
+                    }
+                }
+                try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    home.removeTrigger(trigger) { err in
+                        if let err { continuation.resume(throwing: err) }
+                        else { continuation.resume() }
+                    }
+                }
+                throw error
+            }
+        }
+
+        // Step 1c: Attach an HMDurationEvent end-event so HomeKit reverts the
+        // trigger's actions after N seconds (e.g. motion-triggered light auto-off).
+        // Mirrors the predicate cleanup pattern: on failure, tear down the orphan
+        // trigger (and inline action set if we created one) before rethrowing.
+        if let durationSeconds {
+            do {
+                try await applyDuration(seconds: durationSeconds, to: trigger)
+            } catch {
+                if isInlineActionSet {
+                    try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        home.removeActionSet(actionSet) { err in
+                            if let err { continuation.resume(throwing: err) }
+                            else { continuation.resume() }
+                        }
+                    }
+                }
                 try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                     home.removeTrigger(trigger) { err in
                         if let err { continuation.resume(throwing: err) }
@@ -1255,7 +1295,24 @@ final class HomeKitManager: NSObject, Observable {
         } else {
             result["scene"] = actionSet.name
         }
+        if let durationSeconds {
+            result["duration_seconds"] = durationSeconds
+        }
         return attachPredicateFields(result)
+    }
+
+    /// Add an HMDurationEvent to the trigger's `endEvents` so HomeKit reverts
+    /// any characteristics turned on by the trigger after the given duration.
+    /// Used by `--duration N` on `automations create` to implement auto-off
+    /// for motion-triggered lights and similar patterns.
+    private func applyDuration(seconds: Int, to trigger: HMEventTrigger) async throws {
+        let durationEvent = HMDurationEvent(duration: TimeInterval(seconds))
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            trigger.updateEndEvents([durationEvent]) { error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume() }
+            }
+        }
     }
 
     /// Resolve action definitions to HomeKit accessory/characteristic/value tuples.
