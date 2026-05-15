@@ -264,7 +264,10 @@ platform :ios do
   desc "Capture App Store screenshots via XCUITest in demo mode"
   # Runs HomeClawUITests/ScreenshotTests with `--ui-test-demo`, then uses
   # xcparse to extract XCTAttachments from the .xcresult bundle into
-  # fastlane/screenshots/en-US/.
+  # fastlane/screenshots-raw/en-US/. After this, run
+  # `scripts/frame_screenshots.sh` to composite framed marketing versions
+  # into fastlane/screenshots/en-US/ (which is what `upload_screenshots`
+  # actually uploads).
   #
   # TODO: menu-bar dropdown screenshot. The dropdown is NSMenu (AppKit), not
   # SwiftUI, so it can't be rendered via ImageRenderer. Follow-up options:
@@ -274,7 +277,7 @@ platform :ios do
     prepare
     team = team_id!
 
-    out_dir = File.join(PROJECT_ROOT, "fastlane/screenshots/en-US")
+    out_dir = File.join(PROJECT_ROOT, "fastlane/screenshots-raw/en-US")
     FileUtils.mkdir_p(out_dir)
     Dir.glob(File.join(out_dir, "*.png")).each { |f| File.delete(f) }
 
