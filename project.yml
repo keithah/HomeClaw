@@ -93,6 +93,19 @@ targets:
           echo "$BUILD_NUMBER" > "$BUILD_NUMBER_FILE"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
           echo "Build number set to $BUILD_NUMBER"
+
+          # Sync marketing version from the latest `v*` tag (mirrors
+          # fastlane/Fastfile's `marketing_version` helper). Without this,
+          # Info.plist's CFBundleShortVersionString stays at whatever was
+          # committed and the xcodebuild MARKETING_VERSION flag only
+          # reaches build settings, not the binary's plist — App Store
+          # uploads then land on the prior version's "train" and Apple
+          # rejects them with "train X is closed" (error 90186).
+          MARKETING_VERSION_FROM_TAG=$(git -C "${PROJECT_DIR}" describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//; s/+.*//')
+          if [ -n "$MARKETING_VERSION_FROM_TAG" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION_FROM_TAG" "$PLIST"
+            echo "Marketing version set to $MARKETING_VERSION_FROM_TAG"
+          fi
         basedOnDependencyAnalysis: false
       - name: "Build MCP Server"
         script: |

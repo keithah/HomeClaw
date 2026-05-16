@@ -1,1 +1,7 @@
-Internal tooling improvements: migrated the release pipeline to fastlane and added App Store screenshot infrastructure with full demo mode (no personal HomeKit data ever appears in store assets). No user-visible changes vs. the previous build.
+Refreshed App Store screenshots showing the new automation capabilities introduced in HomeClaw:
+
+• Add conditions to existing automations in place — tighten any rule without rebuilding it. Button bindings and Siri references survive.
+• Time-of-day triggers — fire at a clock time or relative to sunrise/sunset.
+• Auto-revert — trigger actions, then revert them after N seconds. Great for motion-triggered porch lights.
+
+The macOS menu bar app, CLI, MCP server, and OpenClaw plugin all expose these new verbs. Everything stays local.

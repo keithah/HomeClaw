@@ -383,6 +383,69 @@ platform :ios do
     UI.message("  Internal:   #{detail&.internal_build_state || '?'}")
     UI.message("  External:   #{detail&.external_build_state || '?'}")
   end
+
+  desc "Full Mac App Store release: build + upload + create version + attach build + push screenshots/metadata + submit for review"
+  # End-to-end flow for shipping a new App Store version. Reads marketing
+  # version from the latest `v*` tag (strip `v` and `+build`), increments
+  # build number from `.build-number`. After upload it waits inline for
+  # ASC to finish processing the binary, then calls `deliver` to create
+  # the App Store version, attach the build, push screenshots + metadata
+  # + "What's New", and submit for review.
+  #
+  # The "What's New" text is required — pass via `notes_file:` /  `notes:`
+  # CLI flag or `NOTES_FILE` / `NOTES` env var.
+  #
+  # `automatic_release: false` so the version stays in "Pending Developer
+  # Release" after approval — you ship the green button when ready.
+  lane :release do |options|
+    api_key = asc_api_key
+    prepare
+    team = team_id!
+    version = marketing_version
+    build_number = next_build_number
+
+    notes = resolve_notes(options)
+    if notes.nil? || notes.strip.empty?
+      UI.user_error!("Missing 'What's New' notes. Pass `notes_file:<path>` or `notes:<text>`.")
+    end
+
+    UI.message("Releasing #{APP_NAME} v#{version} build #{build_number} to the App Store")
+    archive_and_export(team: team, version: version, build_number: build_number, export: true)
+
+    # Upload + wait for processing so deliver can attach the build inline.
+    # `skip_submission: true` keeps it out of the external TestFlight beta
+    # queue — this lane is for App Store release, not beta distribution.
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: lane_context[SharedValues::IPA_OUTPUT_PATH],
+      skip_waiting_for_build_processing: false,
+      skip_submission: true
+    )
+
+    deliver(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      platform: "osx",
+      app_version: version,
+      build_number: build_number.to_s,
+      release_notes: { "en-US" => notes },
+      skip_binary_upload: true,
+      skip_screenshots: false,
+      overwrite_screenshots: true,
+      skip_metadata: false,
+      force: true,
+      submit_for_review: true,
+      automatic_release: false,
+      run_precheck_before_submit: false,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: false
+      }
+    )
+
+    UI.success("v#{version}+#{build_number} submitted for App Store review")
+    UI.success("Track at https://appstoreconnect.apple.com/apps/6759682551/distribution")
+  end
 end
 
 # Resolve test notes from --notes_file, --notes, or NOTES_FILE/NOTES env vars.

@@ -87,6 +87,14 @@ Upload App Store listing metadata (description, keywords, URLs, etc.)
 
 Show TestFlight status for the latest (or specified) build
 
+### ios release
+
+```sh
+[bundle exec] fastlane ios release
+```
+
+Full Mac App Store release: build + upload + create version + attach build + push screenshots/metadata + submit for review
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
