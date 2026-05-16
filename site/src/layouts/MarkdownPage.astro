@@ -1,0 +1,64 @@
+---
+import Layout from './Layout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<Layout title={`${title} — HomeClaw`} description={description}>
+  <Nav />
+  <main class="pt-36 pb-24 px-4 sm:px-6 lg:px-8">
+    <article class="max-w-3xl mx-auto prose prose-invert">
+      <slot />
+    </article>
+  </main>
+  <Footer />
+</Layout>
+
+<style is:global>
+  .prose-invert {
+    color: theme('colors.foreground');
+  }
+  .prose-invert h1 {
+    @apply text-4xl sm:text-5xl font-bold tracking-tight mb-6;
+  }
+  .prose-invert h2 {
+    @apply text-2xl font-semibold mt-12 mb-4 text-foreground;
+  }
+  .prose-invert h3 {
+    @apply text-xl font-semibold mt-8 mb-3 text-foreground;
+  }
+  .prose-invert p {
+    @apply text-muted leading-relaxed mb-4;
+  }
+  .prose-invert ul {
+    @apply list-disc pl-6 space-y-1 text-muted mb-4;
+  }
+  .prose-invert ol {
+    @apply list-decimal pl-6 space-y-1 text-muted mb-4;
+  }
+  .prose-invert li {
+    @apply leading-relaxed;
+  }
+  .prose-invert strong {
+    @apply text-foreground font-semibold;
+  }
+  .prose-invert a {
+    @apply text-accent hover:text-accent-2 underline;
+  }
+  .prose-invert hr {
+    @apply border-border my-8;
+  }
+  .prose-invert code {
+    @apply bg-card border border-border px-1.5 py-0.5 rounded text-sm font-mono text-accent;
+  }
+  .prose-invert .timestamp {
+    @apply text-sm text-muted mb-8;
+  }
+</style>

@@ -1,0 +1,48 @@
+---
+import MarkdownPage from '../layouts/MarkdownPage.astro';
+---
+
+<MarkdownPage
+  title="Changelog"
+  description="See what's new in HomeClaw. Latest updates, features, and improvements."
+>
+  <h1>Changelog</h1>
+
+  <hr />
+
+  <h3>Version 1.0 — App Store Release</h3>
+  <p class="timestamp">First public App Store release.</p>
+  <h4>Automations</h4>
+  <ul>
+    <li>
+      <strong>Add conditions in place</strong> — <code>automations add-condition</code> tightens an existing
+      automation without rebuilding it. Button bindings and Siri references survive.
+    </li>
+    <li>
+      <strong>Time-of-day triggers</strong> — new <code>automations create-time</code> subcommand fires at a clock
+      time or relative to the sun (<code>--time-after sunrise+15</code>). Composes with weekday gates and
+      characteristic conditions.
+    </li>
+    <li>
+      <strong>Auto-revert with <code>--duration N</code></strong> — trigger fires actions, then reverts them after N
+      seconds. Great for motion-triggered porch lights that should turn off after an hour.
+    </li>
+  </ul>
+
+  <hr />
+
+  <h3>Version 0.0.2 — TestFlight Beta</h3>
+  <p class="timestamp">Initial TestFlight beta release.</p>
+  <h4>Features</h4>
+  <ul>
+    <li>Interactive menu bar with live accessory status and control</li>
+    <li>Toggle lights, adjust brightness, and trigger scenes from the menu bar</li>
+    <li>Switch between multiple HomeKit homes</li>
+    <li>Full-featured CLI tool (<code>homeclaw-cli</code>) with list, get, set, search, scenes, and status commands</li>
+    <li>MCP server for Claude Desktop and Claude Code integration</li>
+    <li>OpenClaw plugin for AI assistant integration</li>
+    <li>Smart device search by name, room, category, or semantic type</li>
+    <li>LLM-optimized device map for AI assistants</li>
+    <li>Privacy-first design — all data stays local</li>
+  </ul>
+</MarkdownPage>

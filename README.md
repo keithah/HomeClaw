@@ -1,10 +1,35 @@
 <p align="center"><img src="docs/images/homeclaw-icon.png" width="200" alt="HomeClaw icon"></p>
 
-# HomeClaw
+<h1 align="center">HomeClaw</h1>
 
-Control your Apple HomeKit smart home from AI assistants, the terminal, and automation tools.
+<p align="center">
+  Control your Apple HomeKit smart home from AI assistants, the terminal, and automation tools.
+</p>
+
+<p align="center">
+  <a href="https://apps.apple.com/us/app/homeclaw/id6759682551?mt=12"><img src="https://img.shields.io/badge/Mac%20App%20Store-Download-0d8b8b?logo=apple&logoColor=white&style=for-the-badge" alt="Download on the Mac App Store"></a>
+  <a href="https://homeclaw.omarknows.app/"><img src="https://img.shields.io/badge/Site-homeclaw.omarknows.app-2c3e50?style=for-the-badge" alt="Website"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
+</p>
 
 HomeClaw exposes your HomeKit accessories through a **command-line tool**, a **stdio MCP server**, and plugins for **Claude Code** and **OpenClaw**. It runs as a lightweight macOS menu bar app.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/framed-settings.png" width="700" alt="Settings — HomeKit homes and accessories overview">
+  <br><em>Settings — every preference in one place</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/framed-cli-list.png" width="700" alt="CLI — list every accessory in one command">
+  <br><em>CLI — every accessory, one command away</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/framed-tui.png" width="700" alt="Terminal UI — accessory tree with live status">
+  <br><em>Terminal UI — for power users</em>
+</p>
 
 ## Why HomeClaw?
 

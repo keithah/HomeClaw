@@ -1,0 +1,56 @@
+---
+import MarkdownPage from '../layouts/MarkdownPage.astro';
+---
+
+<MarkdownPage
+  title="Privacy Policy"
+  description="Your privacy is paramount. HomeClaw keeps all data local."
+>
+  <h1>Privacy Policy</h1>
+  <p class="timestamp"><strong>Last updated:</strong> February 26, 2026</p>
+
+  <h2>Your Privacy Matters</h2>
+  <p>
+    HomeClaw is designed with your privacy as the top priority. Your smart home data stays on your Mac.
+  </p>
+
+  <h2>What We Collect</h2>
+  <p>
+    <strong>Nothing.</strong> We don't collect, store, or transmit any of your HomeKit data or personal information.
+  </p>
+
+  <h2>How the App Works</h2>
+  <ul>
+    <li><strong>Local Processing</strong>: All HomeKit communication happens directly on your Mac via Apple's HomeKit framework</li>
+    <li><strong>No Servers</strong>: Your home data never leaves your device. HomeClaw communicates over a local Unix domain socket only</li>
+    <li><strong>No Tracking</strong>: We don't track your usage or collect analytics</li>
+    <li><strong>No Accounts</strong>: No sign-up required, no email addresses collected</li>
+    <li><strong>No Network Access</strong>: HomeClaw does not make any network requests. All communication is local</li>
+  </ul>
+
+  <h2>HomeKit Access</h2>
+  <p>When you grant HomeClaw access to your HomeKit data:</p>
+  <ul>
+    <li>The app reads your home layout, rooms, accessories, and scenes locally</li>
+    <li>Commands to control accessories are sent directly to HomeKit on your Mac</li>
+    <li>We cannot and do not upload your home data anywhere</li>
+    <li>Your HomeKit access can be revoked at any time in System Settings &gt; Privacy &amp; Security &gt; HomeKit</li>
+  </ul>
+
+  <h2>Third-Party Integrations</h2>
+  <p>
+    HomeClaw provides a CLI tool and MCP server that allow AI assistants (like Claude) to interact with your HomeKit
+    accessories. These integrations:
+  </p>
+  <ul>
+    <li>Communicate only over a local Unix domain socket on your Mac</li>
+    <li>Do not send your home data to any external service</li>
+    <li>Are entirely optional and can be disabled</li>
+  </ul>
+
+  <h2>Contact</h2>
+  <p>
+    If you have questions about privacy, contact us at:
+    <a href="mailto:homeclaw@omarknows.app">homeclaw@omarknows.app</a>
+  </p>
+</MarkdownPage>

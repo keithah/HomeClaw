@@ -1,0 +1,37 @@
+---
+const shots = [
+  { src: '/screenshots/01_Onboarding.png', alt: 'Onboarding — welcome screen with HomeKit setup', caption: 'Onboarding' },
+  { src: '/screenshots/02_Settings_Home.png', alt: 'Settings — HomeKit homes and accessories overview', caption: 'Settings' },
+  { src: '/screenshots/03_TUI.png', alt: 'Terminal UI — accessory tree with live status', caption: 'Terminal UI' },
+  { src: '/screenshots/04_CLI_List.png', alt: 'CLI — list every accessory in one command', caption: 'CLI list' },
+  { src: '/screenshots/05_CLI_Toggle.png', alt: 'CLI — toggle and inspect any accessory', caption: 'CLI toggle' },
+];
+---
+
+<section id="screenshots" class="py-20 px-4 sm:px-6 lg:px-8 border-t border-border">
+  <div class="max-w-6xl mx-auto">
+    <div class="text-center mb-12" data-animate>
+      <h2 class="text-4xl sm:text-5xl font-bold tracking-tight text-foreground">Screenshots</h2>
+      <p class="mt-4 text-lg text-muted max-w-2xl mx-auto">
+        Menu bar, CLI, and terminal UI — all driven by the same socket, all local.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6" data-animate>
+      {shots.map((shot) => (
+        <figure class="group">
+          <div class="overflow-hidden rounded-xl border border-border bg-card shadow-lg shadow-black/30">
+            <img
+              src={shot.src}
+              alt={shot.alt}
+              loading="lazy"
+              decoding="async"
+              class="w-full h-auto block group-hover:scale-[1.01] transition-transform duration-300"
+            />
+          </div>
+          <figcaption class="mt-3 text-sm text-muted text-center">{shot.caption}</figcaption>
+        </figure>
+      ))}
+    </div>
+  </div>
+</section>
