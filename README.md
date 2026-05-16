@@ -59,18 +59,35 @@ OpenClaw --> Plugin (openclaw/) --> homeclaw-cli --------------------------+
 
 ## Install
 
-### TestFlight (Recommended)
+Marketing site with screenshots and full pitch: **[homeclaw.omarknows.app](https://homeclaw.omarknows.app/)**.
 
-The easiest way to install HomeClaw is via TestFlight:
+### Mac App Store (Recommended)
+
+HomeClaw is live on the Mac App Store:
+
+<p>
+  <a href="https://apps.apple.com/us/app/homeclaw/id6759682551?mt=12"><img src="https://img.shields.io/badge/Download-Mac%20App%20Store-0d8b8b?logo=apple&logoColor=white&style=for-the-badge" alt="Download on the Mac App Store"></a>
+</p>
+
+1. **[Open in the Mac App Store](https://apps.apple.com/us/app/homeclaw/id6759682551?mt=12)** and install
+2. Launch HomeClaw -- grant HomeKit access when prompted
+3. The menu bar icon appears. Click it to see your connected homes.
+
+App Store builds are fully signed and notarized, so HomeKit works without any developer account setup.
+
+### TestFlight Beta
+
+Want early access to in-flight builds before they ship to the App Store?
 
 1. **[Join the TestFlight Beta](https://testflight.apple.com/join/zjSnz8eK)**
 2. Install HomeClaw from TestFlight
 3. Launch the app -- grant HomeKit access when prompted
-4. The menu bar icon appears. Click it to see your connected homes.
 
-TestFlight builds are signed for App Store distribution, so HomeKit works without any developer account setup.
+TestFlight builds are signed the same way as App Store builds, so HomeKit works out of the box. You'll get new features (like the automations work in v1.0.1) before they hit the App Store.
 
-Once running, set up your AI integrations:
+### After installing
+
+Set up your AI integrations:
 
 - **[Claude Desktop](#connecting-an-mcp-client)** -- one-click install from Settings > Integrations, or add the MCP server config manually
 - **[Claude Code](#using-with-claude-code)** -- install the plugin from GitHub
