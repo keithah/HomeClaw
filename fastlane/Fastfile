@@ -331,6 +331,9 @@ platform :ios do
       skip_binary_upload: true,
       skip_metadata: true,
       skip_screenshots: false,
+      # Replace ASC's existing screenshot set instead of appending.
+      # Deliver's default is `overwrite_screenshots: false`, which
+      # duplicates every screenshot against the new version.
       overwrite_screenshots: true,
       force: true,
       run_precheck_before_submit: false
@@ -431,6 +434,9 @@ platform :ios do
       release_notes: { "en-US" => notes },
       skip_binary_upload: true,
       skip_screenshots: false,
+      # Replace ASC's existing screenshot set instead of appending.
+      # Deliver's default is `overwrite_screenshots: false`, which
+      # duplicates every screenshot against the new version.
       overwrite_screenshots: true,
       skip_metadata: false,
       force: true,
