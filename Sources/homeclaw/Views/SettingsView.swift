@@ -62,9 +62,13 @@ struct AboutSettingsView: View {
 
             Spacer()
 
-            Text("\u{00A9} Omar Shahine")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            VStack(spacing: 4) {
+                Link("Icon designed by Matthew Skiles", destination: URL(string: "https://matthewskiles.com")!)
+                    .font(.footnote)
+                Text("\u{00A9} Omar Shahine")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
