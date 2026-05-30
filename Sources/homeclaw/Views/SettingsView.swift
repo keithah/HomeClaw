@@ -37,10 +37,11 @@ struct AboutSettingsView: View {
         VStack(spacing: 20) {
             Spacer()
 
-            Image("HomeClaw")
+            Image("AppIconImage")
                 .resizable()
+                .scaledToFit()
                 .frame(width: 128, height: 128)
-                .clipShape(RoundedRectangle(cornerRadius: 24))
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
 
             Text(AppConfig.appName)
                 .font(.largeTitle)
