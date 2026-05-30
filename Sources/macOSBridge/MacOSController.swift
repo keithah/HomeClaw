@@ -101,9 +101,7 @@ public class MacOSController: NSObject, iOS2Mac, NSMenuDelegate {
         statusItem = item
 
         if let button = item.button {
-            button.image = NSImage(
-                systemSymbolName: "house.badge.wifi.fill",
-                accessibilityDescription: "HomeClaw")
+            button.image = Self.menuBarIcon()
         }
 
         item.isVisible = true
@@ -112,6 +110,21 @@ public class MacOSController: NSObject, iOS2Mac, NSMenuDelegate {
         menu?.delegate = self
         item.menu = menu
         rebuildMenu()
+    }
+
+    /// The custom menu bar icon, loaded as a template image from the bundle's
+    /// asset catalog so it adapts to light/dark menu bars. Falls back to an SF
+    /// Symbol if the asset can't be found.
+    private static func menuBarIcon() -> NSImage? {
+        if let image = Bundle(for: MacOSController.self)
+            .image(forResource: NSImage.Name("MenuBarIcon")) {
+            image.isTemplate = true
+            image.size = NSSize(width: 18, height: 18)
+            return image
+        }
+        return NSImage(
+            systemSymbolName: "house.badge.wifi.fill",
+            accessibilityDescription: "HomeClaw")
     }
 
     // MARK: - Menu Building
