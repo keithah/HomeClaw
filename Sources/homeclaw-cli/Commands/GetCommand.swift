@@ -12,9 +12,14 @@ struct Get: ParsableCommand {
     @Flag(name: .long, help: "Output raw JSON")
     var json = false
 
+    @Flag(name: .long, help: "Skip live characteristic reads; return last-known + static values only (fast — ideal for serial number / model / firmware sweeps)")
+    var noRefresh = false
+
     func run() throws {
         if let err = validateInput(accessory, label: "accessory") { throw ValidationError(err) }
-        let response = try SocketClient.send(command: "get_accessory", args: ["id": accessory])
+        var args: [String: String] = ["id": accessory]
+        if noRefresh { args["refresh"] = "false" }
+        let response = try SocketClient.send(command: "get_accessory", args: args)
 
         guard response.success else {
             throw ValidationError(response.error ?? "Unknown error")
@@ -39,6 +44,9 @@ struct Get: ParsableCommand {
         print("  Category:  \(category)")
         print("  Room:      \(room)")
         print("  Reachable: \(reachable)")
+        if detail["refreshed"] as? Bool == false {
+            print("  Note:      --no-refresh — static + last-known values only (dynamic state not live-read)")
+        }
 
         if let services = detail["services"] as? [[String: Any]] {
             for service in services {
