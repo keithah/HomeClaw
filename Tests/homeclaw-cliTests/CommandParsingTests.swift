@@ -34,6 +34,29 @@ struct ReadCommandParsingTests {
         #expect(cmd.json == false)
     }
 
+    // Regression for issue #72: the --category filter must be applied regardless
+    // of output format. Previously the JSON path returned the raw, unfiltered
+    // payload while only the text path filtered.
+    @Test("list --category filter applies (used by both text and JSON output)")
+    func listCategoryFilter() {
+        let accessories: [[String: Any]] = [
+            ["name": "Garage", "category": "garage_door"],
+            ["name": "Lamp", "category": "lightbulb"],
+            ["name": "Other Garage", "category": "Garage_Door"], // case-insensitive
+        ]
+
+        let filtered = List.filterByCategory(accessories, category: "garage_door")
+        #expect(filtered.count == 2)
+        #expect(filtered.allSatisfy { ($0["category"] as? String)?.lowercased() == "garage_door" })
+
+        // No category → unchanged passthrough.
+        let unfiltered = List.filterByCategory(accessories, category: nil)
+        #expect(unfiltered.count == 3)
+
+        // Non-matching category → empty.
+        #expect(List.filterByCategory(accessories, category: "thermostat").isEmpty)
+    }
+
     @Test("get requires an accessory positional and exposes --no-refresh")
     func get() throws {
         let cmd = try Get.parse(["Floor Lamp", "--no-refresh"])
