@@ -10,9 +10,62 @@ import MarkdownPage from '../layouts/MarkdownPage.astro';
 
   <hr />
 
-  <h3>Version 1.0 — App Store Release</h3>
-  <p class="timestamp">First public App Store release.</p>
-  <h4>Automations</h4>
+  <h3>Version 1.0.5</h3>
+  <p class="timestamp">June 2026</p>
+  <h4>Reliability &amp; filtering</h4>
+  <ul>
+    <li>
+      <strong>No more hanging reads</strong> — HomeKit reads now have a hard timeout, and <code>get --no-refresh</code>
+      returns the last known value instantly. A slow or unreachable accessory no longer stalls the command.
+    </li>
+    <li>
+      <strong>Self-healing control socket and menu bar</strong> — automatically recovers from a wedged state on
+      headless Macs instead of going stale.
+    </li>
+    <li><code>--category</code> now applies to <code>list --json</code> output, not just the human-readable view.</li>
+    <li>Correctly decodes threshold triggers and time-range conditions when reading automations.</li>
+    <li>Moved to non-deprecated HomeKit trigger predicates under the hood.</li>
+  </ul>
+
+  <hr />
+
+  <h3>Version 1.0.4</h3>
+  <p class="timestamp">May 2026</p>
+  <h4>New look</h4>
+  <ul>
+    <li><strong>Brand-new app icon</strong> built with Icon Composer.</li>
+    <li>Custom menu bar icon.</li>
+    <li>The About screen now shows the app icon and version.</li>
+  </ul>
+
+  <hr />
+
+  <h3>Version 1.0.3</h3>
+  <p class="timestamp">May 2026</p>
+  <ul>
+    <li>
+      <strong>Fuller automation reads</strong> — <code>automations get</code> now surfaces trigger-owned hidden
+      action sets, so you see the complete rule.
+    </li>
+    <li>The OpenClaw plugin now ships its compiled bundle for a clean one-step install.</li>
+  </ul>
+
+  <hr />
+
+  <h3>Version 1.0.2</h3>
+  <p class="timestamp">May 2026</p>
+  <h4>App Store listing refresh</h4>
+  <ul>
+    <li>Refreshed screenshots showing the new automation capabilities.</li>
+    <li>Updated &ldquo;What&rsquo;s New&rdquo; and subtitle (&ldquo;CLI, MCP, and AI for HomeKit&rdquo;).</li>
+    <li>No functional changes versus 1.0.1.</li>
+  </ul>
+
+  <hr />
+
+  <h3>Version 1.0.1</h3>
+  <p class="timestamp">May 2026</p>
+  <h4>Automations got more powerful</h4>
   <ul>
     <li>
       <strong>Add conditions in place</strong> — <code>automations add-condition</code> tightens an existing
@@ -27,6 +80,14 @@ import MarkdownPage from '../layouts/MarkdownPage.astro';
       <strong>Auto-revert with <code>--duration N</code></strong> — trigger fires actions, then reverts them after N
       seconds. Great for motion-triggered porch lights that should turn off after an hour.
     </li>
+  </ul>
+
+  <hr />
+
+  <h3>Version 1.0 — App Store Release</h3>
+  <p class="timestamp">First public App Store release.</p>
+  <ul>
+    <li>HomeClaw arrives on the Mac App Store: the interactive menu bar, terminal UI, full CLI, MCP server, and OpenClaw plugin in one app.</li>
   </ul>
 
   <hr />
