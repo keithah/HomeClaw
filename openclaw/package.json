@@ -2,21 +2,21 @@
   "name": "homeclaw",
   "version": "1.0.3",
   "private": true,
-  "description": "OpenClaw plugin for HomeKit smart home control \u2014 lights, locks, thermostats, and scenes",
+  "description": "OpenClaw plugin for HomeKit smart home control — lights, locks, thermostats, and scenes",
   "type": "module",
   "openclaw": {
     "extensions": [
-      "./dist/index.js"
+      "./src/index.ts"
     ],
     "compat": {
-      "pluginApi": ">=2026.3.23"
+      "pluginApi": ">=2026.6.5"
     },
     "build": {
-      "openclawVersion": "2026.4.15"
+      "openclawVersion": "2026.6.5",
+      "pluginSdkVersion": "2026.6.5"
     }
   },
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "files": [
     "dist/",
     "src/",
@@ -51,10 +51,11 @@
     "darwin"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22.19.0"
   },
   "dependencies": {
-    "@sinclair/typebox": "^0.34.48"
+    "@sinclair/typebox": "^0.34.48",
+    "openclaw": "^2026.6.5"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
@@ -64,10 +65,11 @@
     "openclaw": ">=2026.3.23"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
     "plugin:check": "npm run build && npx --yes @openclaw/plugin-inspector inspect --no-openclaw",
-    "plugin:ci": "npm run build && npx --yes @openclaw/plugin-inspector ci --no-openclaw --runtime --mock-sdk --allow-execute"
+    "plugin:ci": "npm run build && npx --yes @openclaw/plugin-inspector ci --no-openclaw --runtime --mock-sdk --allow-execute",
+    "prepack": "npm run build"
   }
 }

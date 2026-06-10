@@ -5,7 +5,7 @@
  * Each tool maps to a CLI subcommand (status, list, get, set, scenes, events, etc.).
  */
 
-import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
+import { definePluginEntry, type OpenClawPluginDefinition } from 'openclaw/plugin-sdk/plugin-entry';
 import { Type, type TObject } from '@sinclair/typebox';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -376,7 +376,7 @@ function resolveCliPath(config?: PluginConfig): string {
 	);
 }
 
-export default definePluginEntry({
+const pluginEntry: OpenClawPluginDefinition = definePluginEntry({
 	id: 'homeclaw',
 	name: 'HomeClaw',
 	description: 'HomeKit smart home control and monitoring',
@@ -464,3 +464,5 @@ export default definePluginEntry({
 		}
 	},
 });
+
+export default pluginEntry;
