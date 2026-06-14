@@ -455,6 +455,49 @@ platform :ios do
     UI.success("v#{version}+#{build_number} submitted for App Store review")
     UI.success("Track at https://appstoreconnect.apple.com/apps/6759682551/distribution")
   end
+
+  desc "Submit an already-uploaded build to App Store review (no rebuild)"
+  # Use when the binary is already on App Store Connect (e.g. an existing
+  # TestFlight build) and you want to ship that exact build to the store
+  # without archiving a fresh one. Pass `build:<n>` (defaults to the current
+  # `.build-number`). Marketing version comes from the latest `v*` tag.
+  # Requires "What's New" notes via notes_file:/notes:/NOTES_FILE/NOTES.
+  lane :release_build do |options|
+    api_key = asc_api_key
+    version = marketing_version
+    build_number = (options[:build] || File.read(File.join(PROJECT_ROOT, ".build-number")).strip).to_s
+
+    notes = resolve_notes(options)
+    if notes.nil? || notes.strip.empty?
+      UI.user_error!("Missing 'What's New' notes. Pass `notes_file:<path>` or `notes:<text>`.")
+    end
+
+    UI.message("Submitting existing #{APP_NAME} v#{version} build #{build_number} to the App Store")
+
+    deliver(
+      api_key: api_key,
+      app_identifier: BUNDLE_ID,
+      platform: "osx",
+      app_version: version,
+      build_number: build_number,
+      release_notes: { "en-US" => notes },
+      skip_binary_upload: true,
+      skip_screenshots: false,
+      overwrite_screenshots: true,
+      skip_metadata: false,
+      force: true,
+      submit_for_review: true,
+      automatic_release: false,
+      run_precheck_before_submit: false,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: false
+      }
+    )
+
+    UI.success("v#{version}+#{build_number} submitted for App Store review")
+    UI.success("Track at https://appstoreconnect.apple.com/apps/6759682551/distribution")
+  end
 end
 
 # Resolve test notes from --notes_file, --notes, or NOTES_FILE/NOTES env vars.

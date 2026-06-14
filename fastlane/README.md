@@ -95,6 +95,14 @@ Show TestFlight status for the latest (or specified) build
 
 Full Mac App Store release: build + upload + create version + attach build + push screenshots/metadata + submit for review
 
+### ios release_build
+
+```sh
+[bundle exec] fastlane ios release_build
+```
+
+Submit an already-uploaded build to App Store review (no rebuild)
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
