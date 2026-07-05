@@ -8,7 +8,7 @@ struct UpdateScene: ParsableCommand {
             "Replace the actions on an existing scene in-place (preserves UUID; automations remain wired)"
     )
 
-    @Argument(help: "Path to JSON file with scene definition")
+    @Argument(help: "Path to JSON file with scene definition, or '-' to read from stdin")
     var file: String
 
     @Option(name: .long, help: "Home name or UUID (defaults to primary home)")
@@ -21,21 +21,21 @@ struct UpdateScene: ParsableCommand {
     var json = false
 
     func run() throws {
-        let url = URL(fileURLWithPath: file)
-        let data = try Data(contentsOf: url)
+        let data = try readCommandInputData(file)
         guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let actions = parsed["actions"] as? [[String: String]]
         else {
             throw ValidationError(
-                "JSON file must contain 'actions' array of "
-                    + "{\"accessory\": \"...\", \"property\": \"...\", \"value\": \"...\"} objects, "
+                "JSON input must contain 'actions' array of "
+                    + "{\"accessory\": \"...\", \"property\": \"...\", \"value\": \"...\"} objects "
+                    + "('characteristic' is accepted as an alias for 'property'), "
                     + "plus either 'id' (preferred) or 'name' to identify the scene"
             )
         }
         let id = parsed["id"] as? String
         let name = parsed["name"] as? String
         guard id != nil || name != nil else {
-            throw ValidationError("JSON file must contain 'id' or 'name'")
+            throw ValidationError("JSON input must contain 'id' or 'name'")
         }
 
         var args: [String: Any] = [
