@@ -140,15 +140,50 @@ def first_external_group_name(api_key)
   external.name
 end
 
+# xcodebuild authentication args for cloud signing. Without these,
+# -allowProvisioningUpdates depends on an Apple ID session inside Xcode —
+# which silently vanishes on Xcode updates and then exportArchive fails with
+# "No Accounts" / "No signing certificate 'Mac Installer Distribution' found"
+# (it can't refresh the profile or mint the installer cert). Passing the ASC
+# API key lets xcodebuild manage certs/profiles headlessly.
+def xcodebuild_auth_args
+  key_id = ENV["ASC_KEY_ID"] || ENV["APP_STORE_CONNECT_API_KEY_ID"]
+  issuer_id = ENV["ASC_ISSUER_ID"] || ENV["APP_STORE_CONNECT_API_ISSUER_ID"]
+  key_path = ENV["ASC_KEY_PATH"] || ENV["APP_STORE_CONNECT_API_KEY_PATH"]
+  key_path = File.expand_path("~/.private_keys/AuthKey_#{key_id}.p8") if (key_path.nil? || key_path.empty?) && key_id
+  return "" if key_id.nil? || issuer_id.nil? || key_path.nil? || !File.exist?(File.expand_path(key_path))
+
+  " -authenticationKeyPath #{Shellwords.escape(File.expand_path(key_path))}" \
+    " -authenticationKeyID #{Shellwords.escape(key_id)}" \
+    " -authenticationKeyIssuerID #{Shellwords.escape(issuer_id)}"
+end
+
 def archive_and_export(team:, version:, build_number:, export: false)
   rm_rf = ->(p) { FileUtils.rm_rf(p) }
   rm_rf.call(ARCHIVE_PATH)
   rm_rf.call(EXPORT_PATH) if export
 
+  # Auth args go in xcargs ONLY: gym appends both xcargs and export_xcargs to
+  # the exportArchive invocation, and xcodebuild rejects repeated
+  # -authenticationKeyPath ("may only be provided once", exit 64).
+  #
+  # Export uses MANUAL signing: refreshing the Xcode-managed "Team Store"
+  # profile is a cloud-signing operation the ASC API key isn't permitted to do
+  # ("Cloud signing permission error"). The "com.shahine.homeclaw AppStore"
+  # profile is created/renewed via `fastlane run sigh app_identifier:com.shahine.homeclaw
+  # platform:catalyst force:true` (plain ASC API — allowed), and the installer
+  # cert via `fastlane run cert type:mac_installer_distribution`.
   build_app(
     skip_package_ipa: !export,
-    xcargs: "DEVELOPMENT_TEAM=#{team} MARKETING_VERSION=#{version} CURRENT_PROJECT_VERSION=#{build_number} ONLY_ACTIVE_ARCH=NO -allowProvisioningUpdates",
-    export_xcargs: "-allowProvisioningUpdates"
+    xcargs: "DEVELOPMENT_TEAM=#{team} MARKETING_VERSION=#{version} CURRENT_PROJECT_VERSION=#{build_number} ONLY_ACTIVE_ARCH=NO -allowProvisioningUpdates#{xcodebuild_auth_args}",
+    export_xcargs: "-allowProvisioningUpdates",
+    export_options: {
+      method: "app-store",
+      signingStyle: "manual",
+      signingCertificate: "Apple Distribution",
+      installerSigningCertificate: "3rd Party Mac Developer Installer",
+      provisioningProfiles: { "com.shahine.homeclaw" => "com.shahine.homeclaw AppStore" },
+    }
   )
 
   verify_bundle!
