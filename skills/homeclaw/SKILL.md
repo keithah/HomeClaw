@@ -189,6 +189,36 @@ Use when the automation should trigger an existing scene:
 1. Find the button and identify the scene
 2. Create automation: `homekit_automations` with `action: "create"`, `name: "Button → Movie Time"`, `accessory_id: "<button-uuid>"`, `scene_id: "Movie Time"`, `press_type: 0`
 
+### Edit a scene's actions in place (CLI)
+
+Repoints an existing scene at different accessories/values **without changing its UUID**, so automations that trigger it stay wired. Only `update-scene` / `import-scene` (CLI) can do this — there is no MCP tool for it. Common use: point a slow "set each shade" scene at a single vendor "scene switch" so one press moves everything at once.
+
+1. Inspect current actions: `homeclaw-cli get-scene "Main Blinds - Open" --json`
+2. Write the new definition. Actions are `{"accessory", "property", "value"}`; `characteristic` is accepted as an alias for `property`, so `get-scene` output round-trips. Reference accessories by **UUID** when names collide.
+   ```json
+   { "name": "Main Blinds - Open",
+     "actions": [ { "accessory": "Open Main Blinds", "property": "power", "value": "1" } ] }
+   ```
+3. Dry-run, then apply. Pipe via stdin (`-`) to avoid the sandbox file limit below:
+   ```
+   cat scene.json | homeclaw-cli update-scene - --dry-run    # check resolved_actions
+   cat scene.json | homeclaw-cli update-scene -
+   ```
+   `--dry-run` reports `resolved_actions`; if it's below your action count, an accessory/property didn't resolve — read the `warnings`.
+
+> **Sandbox file access.** `homeclaw-cli` is sandboxed to the app group, so it can only open files under `~/Library/Group Containers/group.com.shahine.homeclaw/` (or system paths). Files in `/tmp`, `~/Desktop`, or agent temp dirs fail with *"couldn't be opened because you don't have permission to view it"* — this is **not** fixed by granting Full Disk Access. Pipe JSON via stdin (`-`), or place the file in the group container.
+
+### Detach a hidden scene from a button (CLI)
+
+Buttons sometimes carry hidden, trigger-owned scenes (e.g. an auto-generated close-all fired alongside an open) that `get-scene` can see but `update-scene`/`delete-scene` cannot edit (they only search visible scenes). Detach them from the automation instead:
+
+1. Find the automation: `homeclaw-cli automations list --json`
+2. Detach the scene (`--add-scene`/`--remove-scene` repeatable, `--dry-run` supported, trigger UUID preserved):
+   ```
+   homeclaw-cli automations rewire "<automation id>" --remove-scene "<scene name or uuid>" --dry-run
+   homeclaw-cli automations rewire "<automation id>" --remove-scene "<scene name or uuid>"
+   ```
+
 ### Button modes and service_index
 
 Programmable switches (Aqara, Hue, etc.) may operate in different modes:
@@ -208,6 +238,9 @@ Use `--service-index` (CLI) or `service_index` (MCP) to target a specific button
 | "Accessory not found" | Wrong UUID or name | Use `search` to find the correct identifier |
 | "Characteristic not writable" | Trying to set a read-only characteristic | Check the writable column in the characteristics tables below |
 | Values show `"nil"` | Accessory is unreachable or bridge hasn't synced | Check `reachable` field; unreachable devices return `nil` for all state values |
+| "couldn't be opened because you don't have permission to view it" | `update-scene`/`import-scene` given a file outside the sandbox (e.g. `/tmp`) | CLI is app-sandboxed — pipe JSON via stdin (`homeclaw-cli update-scene -`) or put the file under `~/Library/Group Containers/group.com.shahine.homeclaw/`. FDA does not help. |
+| "Scene not found" on `update-scene` for a scene `get-scene` can see | It's a hidden, trigger-owned scene | Use `automations rewire <automation> --remove-scene <scene>` to detach it; it can't be edited in place |
+| Dry-run shows `resolved_actions: 0` with "missing fields" | Action used `characteristic` on an old build, or lacks `accessory`/`property`/`value` | Use `property` (or update to a build where `characteristic` is an accepted alias); ensure all three keys are present |
 
 ## Configuration
 

@@ -2742,6 +2742,23 @@ final class HomeKitManager: NSObject, Observable {
             }
         }
         guard let actionSet = foundActionSet, let home = foundHome else {
+            // A hidden, trigger-owned scene (e.g. an auto-generated close-all bound
+            // to a Pico button) resolves via get-scene but lives under the trigger,
+            // not home.actionSets — so update-scene can't edit it in place. Point the
+            // user at the tool that CAN detach it instead of a bare "not found".
+            for home in targetHomes {
+                let isHidden = allActionSets(in: home).contains { entry in
+                    entry.hidden
+                        && (entry.actionSet.uniqueIdentifier.uuidString.caseInsensitiveCompare(nameOrID) == .orderedSame
+                            || entry.actionSet.name.localizedCaseInsensitiveCompare(nameOrID) == .orderedSame)
+                }
+                if isHidden {
+                    throw ControlError.invalidArgument(
+                        "'\(nameOrID)' is a hidden trigger-owned scene and can't be edited with update-scene. "
+                            + "Use 'automations rewire <automation> --remove-scene \(nameOrID)' to detach it from its button."
+                    )
+                }
+            }
             throw ControlError.accessoryNotFound("Scene not found: \(nameOrID)")
         }
 
