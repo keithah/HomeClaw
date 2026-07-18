@@ -299,7 +299,11 @@ platform :ios do
       # Mac Catalyst — the Gymfile's catalyst_platform doesn't apply here
       # (no build step), and pilot otherwise prompts interactively for the
       # target platform and crashes in non-interactive mode.
-      app_platform: "osx"
+      app_platform: "osx",
+      # The build is already uploaded and processed — pilot's
+      # wait_for_build_processing loop hangs indefinitely even on a VALID
+      # build when combined with distribute_only, so skip it.
+      skip_waiting_for_build_processing: true
     )
 
     UI.success("Build #{build_number} submitted to '#{group_name}'.")
