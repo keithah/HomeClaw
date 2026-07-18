@@ -517,7 +517,7 @@ metadata:
   originSessionId: c361650b-0648-474b-a31d-454a3bb334f5
 ---
 
-The chief-of-staff plugin's `aqara_call_v3` module (at `~/GitHub/omarshahine-plugins/plugins/chief-of-staff/skills/home-ecosystem/scripts/aqara_call_v3.py`) wraps the Aqara Open Cloud API. Auth is via `aqara_api_key` + `aqara_base_url` + `aqara_open_*` env vars (loaded from `.secrets-macbook-pro.env`).
+The chief-of-staff plugin's `aqara_call_v3` module (at `~/GitHub/chief-of-staff/plugins/chief-of-staff/skills/home-ecosystem/scripts/aqara_call_v3.py`) wraps the Aqara Open Cloud API. Auth is via `aqara_api_key` + `aqara_base_url` + `aqara_open_*` env vars (loaded from `.secrets-macbook-pro.env`).
 
 ## Working intents (verified 2026-05-26)
 
