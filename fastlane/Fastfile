@@ -291,9 +291,15 @@ platform :ios do
       groups: [group_name],
       distribute_external: true,
       notify_external_testers: true,
-      skip_submission: false,
-      skip_waiting_for_build_processing: false,
-      wait_processing_interval: 30
+      # Without distribute_only: true, pilot insists on an ipa/pkg upload —
+      # errors with "No ipa or pkg file given" even when app_identifier +
+      # build_number are provided. distribute_only tells pilot to work on the
+      # already-uploaded build.
+      distribute_only: true,
+      # Mac Catalyst — the Gymfile's catalyst_platform doesn't apply here
+      # (no build step), and pilot otherwise prompts interactively for the
+      # target platform and crashes in non-interactive mode.
+      app_platform: "osx"
     )
 
     UI.success("Build #{build_number} submitted to '#{group_name}'.")
