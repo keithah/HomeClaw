@@ -6,8 +6,9 @@ import Testing
 // and FormatDurationTests covers formatDuration. The two helpers below were
 // previously untested:
 //   - formatWeekdays: the inverse of parseWeekdays, used to render list/get output
-//   - validateTimeSpec: the --time-after / --time-before parser (distinct from the
-//     --time parser, which is validateTimeOfDaySpec and rejects HH:MM here)
+//   - validateTimeSpec: the --time-after / --time-before parser. Since #81 it shares
+//     its grammar with the --time parser (validateTimeOfDaySpec now delegates to it),
+//     so both clock times and sun events are accepted.
 
 // MARK: - formatWeekdays (HomeKit weekday numbers → label)
 
@@ -61,6 +62,19 @@ struct ValidateTimeSpecTests {
         #expect(try CreateAutomation.validateTimeSpec("sunrise+0", flag: "--time-after") == "sunrise+0")
     }
 
+    @Test("whitespace inside a sun offset is tolerated and normalized away")
+    func spacedOffsets() throws {
+        // The pre-#81 socket-side condition parser trimmed the leading side of the
+        // offset, so `sunset -30` reached HomeKit fine via MCP (which forwards raw
+        // strings unvalidated). Unifying the grammar must not regress that, and the
+        // value we put on the wire should be canonical either way.
+        #expect(try CreateAutomation.validateTimeSpec("sunset -30", flag: "--time-after") == "sunset-30")
+        #expect(try CreateAutomation.validateTimeSpec("sunrise +15", flag: "--time-before") == "sunrise+15")
+        #expect(try CreateAutomation.validateTimeSpec("sunset - 30", flag: "--time-after") == "sunset-30")
+        #expect(try CreateAutomation.validateTimeSpec("sunset- 30", flag: "--time-after") == "sunset-30")
+        #expect(try CreateAutomation.validateTimeSpec("  SUNRISE + 15  ", flag: "--time") == "sunrise+15")
+    }
+
     @Test("offset at the 1440-minute cap accepted, beyond it rejected")
     func offsetCap() throws {
         #expect(try CreateAutomation.validateTimeSpec("sunset+1440", flag: "--time-after") == "sunset+1440")
@@ -69,13 +83,25 @@ struct ValidateTimeSpecTests {
         }
     }
 
-    @Test("HH:MM is NOT a valid sun-relative spec (that's --time, not --time-after)")
-    func clockTimeRejected() {
-        // validateTimeSpec only accepts sunrise/sunset forms — a wall-clock time
-        // belongs to validateTimeOfDaySpec. This guards against the two parsers
-        // being accidentally swapped.
-        #expect(throws: (any Error).self) {
-            _ = try CreateAutomation.validateTimeSpec("06:30", flag: "--time-after")
+    @Test("HH:MM clock times accepted as conditions (#81)")
+    func clockTimeAccepted() throws {
+        // Gating a sensor automation to a fixed time-of-day window is the whole
+        // point of #81 — `--time-after 07:00 --time-before 20:30`.
+        #expect(try CreateAutomation.validateTimeSpec("07:00", flag: "--time-after") == "07:00")
+        #expect(try CreateAutomation.validateTimeSpec("20:30", flag: "--time-before") == "20:30")
+        #expect(try CreateAutomation.validateTimeSpec("00:00", flag: "--time-after") == "00:00")
+        #expect(try CreateAutomation.validateTimeSpec("23:59", flag: "--time-before") == "23:59")
+        #expect(try CreateAutomation.validateTimeSpec("  09:15  ", flag: "--time-after") == "09:15")
+    }
+
+    @Test("clock times keep the strict two-digit / in-range rules of --time")
+    func clockTimeStrictness() {
+        // Same rules as validateTimeOfDaySpec: '6:30' must not be silently widened,
+        // and '12:5' must not become '12:50'.
+        for bad in ["6:30", "12:5", "12:345", "25:00", "24:00", "12:60", "12:ab", ":30", "12:", ":"] {
+            #expect(throws: (any Error).self) {
+                _ = try CreateAutomation.validateTimeSpec(bad, flag: "--time-after")
+            }
         }
     }
 
