@@ -517,6 +517,9 @@ platform :ios do
   #     alone and upload ONLY the "What's New" text. Use this when the repo's
   #     `fastlane/metadata/` is older than the live listing, or the listing has
   #     been hand-edited in ASC since the last push.
+  #
+  # `auto_release:true` releases the version as soon as Apple approves it.
+  # Default is manual, which parks it in "Pending Developer Release".
   lane :release_build do |options|
     api_key = asc_api_key
     version = marketing_version
@@ -529,10 +532,12 @@ platform :ios do
 
     skip_screenshots = truthy(options[:skip_screenshots])
     notes_only = truthy(options[:skip_metadata])
+    auto_release = truthy(options[:auto_release])
 
     UI.message("Submitting existing #{APP_NAME} v#{version} build #{build_number} to the App Store")
     UI.important("Screenshots: leaving the live set untouched") if skip_screenshots
     UI.important("Metadata: uploading release notes only, leaving the live listing untouched") if notes_only
+    UI.important("Release: automatic on approval") if auto_release
 
     deliver(
       api_key: api_key,
@@ -551,7 +556,9 @@ platform :ios do
       metadata_path: notes_only ? notes_only_metadata_path(notes) : nil,
       force: true,
       submit_for_review: true,
-      automatic_release: false,
+      # `false` leaves the version in "Pending Developer Release" after
+      # approval; `auto_release:true` ships it the moment Apple approves.
+      automatic_release: auto_release,
       run_precheck_before_submit: false,
       submission_information: {
         add_id_info_uses_idfa: false,
