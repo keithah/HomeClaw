@@ -80,5 +80,10 @@ fastlane/README.md.bak
 # Claude Code session state
 .claude/scheduled_tasks.lock
 
+# Local dev MCP config — must stay untracked. The Claude Code plugin's root is
+# the repo root (marketplace.json source: "./"), so a tracked .mcp.json would
+# ship with the plugin and register its servers for every user (issue #84).
+.mcp.json
+
 # Clawpatch local review state
 .clawpatch/
