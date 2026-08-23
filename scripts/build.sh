@@ -16,6 +16,33 @@ if [[ -f "$PROJECT_ROOT/.env.local" ]]; then
 fi
 TEAM_ID="${HOMEKIT_TEAM_ID:-}"
 
+# ─── Toolchain ──────────────────────────────────────────────────────
+#
+# Machines with several Xcodes installed otherwise build against whatever
+# `xcode-select` happens to point at, which is invisible in the output. Honor an
+# explicit override (env or .env.local) and always report what we used.
+# XCODE_APP is a convenience spelling of DEVELOPER_DIR.
+if [[ -n "${XCODE_APP:-}" && -z "${DEVELOPER_DIR:-}" ]]; then
+    DEVELOPER_DIR="$XCODE_APP/Contents/Developer"
+fi
+if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+    if [[ ! -d "$DEVELOPER_DIR" ]]; then
+        echo "Error: DEVELOPER_DIR does not exist: $DEVELOPER_DIR" >&2
+        exit 1
+    fi
+    export DEVELOPER_DIR
+fi
+# Take the first line with parameter expansion rather than `| head -1`: head
+# exits after one line, xcodebuild takes SIGPIPE, and under `set -o pipefail`
+# the resulting 141 makes the assignment fail — which `set -e` turns into a
+# silent abort of the whole script before it builds anything.
+# `|| true` keeps a missing or broken xcode-select from aborting it the same way.
+XCODE_VERSION="$(xcodebuild -version 2>/dev/null || true)"
+XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
+XCODE_PATH="$(xcode-select -p 2>/dev/null || true)"
+XCODE_VERSION="${XCODE_VERSION:-unknown}"
+XCODE_PATH="${XCODE_PATH:-unknown}"
+
 # Defaults
 BUILD_CONFIG="release"
 DO_INSTALL=false
@@ -56,6 +83,11 @@ Options:
 
 Environment:
   HOMEKIT_TEAM_ID   Same as --team-id (flag takes precedence)
+  DEVELOPER_DIR     Xcode toolchain to build with (defaults to xcode-select)
+  XCODE_APP         Path to an Xcode.app; shorthand for DEVELOPER_DIR
+
+Both toolchain variables may also be set in .env.local. The Xcode in use is
+printed on every build.
 EOF
     exit 0
 }
@@ -115,7 +147,21 @@ next_step() { CURRENT_STEP=$((CURRENT_STEP + 1)); }
 
 echo ""
 echo "$(bold "Building $APP_NAME...") ($BUILD_CONFIG) v$MARKETING_VERSION build $BUILD_NUMBER"
+echo "  Toolchain: $XCODE_VERSION ($XCODE_PATH)"
 echo ""
+
+# Concurrent xcodebuild runs against the same project can wedge the build
+# service: a run sits at the toolchain probe indefinitely, producing no object
+# files, while `xcodebuild -list` keeps answering — which reads as a broken
+# toolchain rather than contention, and costs a long time to diagnose. Refuse up
+# front instead of hanging. Scoped to this project deliberately; unrelated
+# xcodebuild runs elsewhere on the machine are not blocked.
+EXISTING_BUILD="$(pgrep -f "xcodebuild.*$APP_NAME.xcodeproj" 2>/dev/null | grep -v "^$$\$" | head -1 || true)"
+if [[ -n "$EXISTING_BUILD" ]]; then
+    echo "Error: another xcodebuild is already running against $APP_NAME.xcodeproj (pid $EXISTING_BUILD)." >&2
+    echo "  Concurrent builds wedge the build service. Wait for it, or: kill $EXISTING_BUILD" >&2
+    exit 1
+fi
 
 # Clean if requested
 if $DO_CLEAN; then
@@ -169,10 +215,19 @@ XCODE_ARGS=(
     -quiet
 )
 
-if xcodebuild "${XCODE_ARGS[@]}" 2>/dev/null; then
+# Keep the full log: -quiet plus a discarded stderr used to reduce every failure
+# to "xcodebuild failed" with no way to tell why.
+BUILD_LOG="$PROJECT_ROOT/.build/xcodebuild.log"
+mkdir -p "$(dirname "$BUILD_LOG")"
+if xcodebuild "${XCODE_ARGS[@]}" >"$BUILD_LOG" 2>&1; then
     step_done
 else
-    step_fail "xcodebuild failed"
+    printf "  %s\n" "$(red)"
+    echo "" >&2
+    echo "xcodebuild failed. Last 40 lines of $BUILD_LOG:" >&2
+    echo "" >&2
+    tail -40 "$BUILD_LOG" >&2
+    exit 1
 fi
 
 # Phase 4: Locate built app
