@@ -229,6 +229,11 @@ GitHub Actions (`.github/workflows/tests.yml`) runs on `macos-26`:
   `CODE_SIGNING_ALLOWED=NO`, asserting `** BUILD SUCCEEDED **`
 - **Version Consistency** — checks the plugin manifest versions agree
 
+The two macOS jobs (**Build**, **Catalyst App**) run only on pull requests —
+macOS minutes bill at 10x Linux, and re-running them on the merge commit's push
+to main duplicated what the PR already proved. Pushes to main run only the
+Linux **Version Consistency** job.
+
 CI builds the Catalyst app **unsigned only**. The HomeKit entitlement is App
 Store-only and cannot be provisioned on a runner, so CI proves the app target
 compiles and links, not that it is signable or distributable. A signed build

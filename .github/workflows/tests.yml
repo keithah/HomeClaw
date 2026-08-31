@@ -6,9 +6,17 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # macOS runner minutes bill at 10x the Linux rate, so the two macOS jobs
+  # only run on pull requests — re-running them on the merge commit's push
+  # to main duplicated work the PR already proved.
   build:
     name: Build
+    if: github.event_name == 'pull_request'
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -40,6 +48,7 @@ jobs:
 
   catalyst:
     name: Catalyst App
+    if: github.event_name == 'pull_request'
     runs-on: macos-26
     steps:
       - name: Checkout
