@@ -31,6 +31,7 @@ class HomeClawApp: UIResponder, UIApplicationDelegate, Mac2iOS {
             stop: { await server.stop() })
     }
     private var terminationTask: Task<Void, Never>?
+    private var macTerminationObserver: NSObjectProtocol?
     private let socketLifecycleQueue = DispatchQueue(label: "com.shahine.homeclaw.socket-lifecycle")
 
     /// Held for the app's lifetime to opt out of App Nap. HomeClaw is an
@@ -179,6 +180,16 @@ class HomeClawApp: UIResponder, UIApplicationDelegate, Mac2iOS {
     ) -> Bool {
         guard !AppLaunchPolicy.suppressLiveServices else { return true }
         AppLogger.app.info("HomeClaw starting (unified Catalyst)...")
+        #if targetEnvironment(macCatalyst)
+        // AppKit system/Apple-event quit need not call UIKit's termination hook.
+        // Observe the synchronous final notification without replacing its delegate.
+        macTerminationObserver = NotificationCenter.default.addObserver(
+            forName: Notification.Name("NSApplicationWillTerminateNotification"),
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { _ = self?.beginServerShutdown() }
+        }
+        #endif
 
         // Opt out of App Nap for the lifetime of the process so the control socket
         // and menu-data pipeline keep running on headless/idle Macs. `.allowing`
