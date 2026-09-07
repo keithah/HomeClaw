@@ -3,254 +3,560 @@ import Foundation
 /// Canonical MCP tool registration shared by native HTTP and stdio clients.
 /// HTTP applies an explicit read-only allowlist; stdio retains the full tool set.
 enum ToolHandlers {
-    static let allToolsJSON: Data = {
-        let encoded = """
-W3sibmFtZSI6ImhvbWVraXRfc3RhdHVzIiwiZGVzY3JpcHRpb24iOiJDaGVjayBIb21lQ2xhdyBzdGF0dXMg4oCUIHNob3dzIGNv
-bm5lY3Rpdml0eSwgaG9tZSBjb3VudCwgYW5kIGFjY2Vzc29yeSBjb3VudC4iLCJpbnB1dFNjaGVtYSI6eyJ0eXBlIjoib2JqZWN0
-IiwicHJvcGVydGllcyI6e319fSx7Im5hbWUiOiJob21la2l0X2FjY2Vzc29yaWVzIiwiZGVzY3JpcHRpb24iOiJNYW5hZ2UgSG9t
-ZUtpdCBhY2Nlc3NvcmllczogbGlzdCBhbGwsIGdldCBkZXRhaWxzLCBzZWFyY2ggYnkgbmFtZS9yb29tL2NhdGVnb3J5LCBvciBj
-b250cm9sIChzZXQgY2hhcmFjdGVyaXN0aWMgdmFsdWVzKS4gUmV0dXJucyBvbmx5IGFjY2Vzc29yaWVzIHZpc2libGUgdW5kZXIg
-dGhlIGN1cnJlbnQgZmlsdGVyIGNvbmZpZ3VyYXRpb24uIERlZmF1bHRzIHRvIGNvbmZpZ3VyZWQgaG9tZSBpZiBob21lX2lkIG5v
-dCBzcGVjaWZpZWQuIiwiaW5wdXRTY2hlbWEiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsiYWN0aW9uIjp7InR5cGUi
-OiJzdHJpbmciLCJlbnVtIjpbImxpc3QiLCJnZXQiLCJzZWFyY2giLCJjb250cm9sIl0sImRlc2NyaXB0aW9uIjoiQWN0aW9uIHRv
-IHBlcmZvcm0uIERlZmF1bHQ6IGxpc3QifSwiaG9tZV9pZCI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJGaWx0ZXIg
-YnkgaG9tZSBVVUlELiBEZWZhdWx0cyB0byBjb25maWd1cmVkIGhvbWUgaWYgbm90IHNwZWNpZmllZC4ifSwicm9vbSI6eyJ0eXBl
-Ijoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJGaWx0ZXIgYnkgcm9vbSBuYW1lIChsaXN0IGFjdGlvbiBvbmx5KSJ9LCJhY2Nlc3Nv
-cnlfaWQiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiQWNjZXNzb3J5IFVVSUQgb3IgbmFtZSAoZ2V0L2NvbnRyb2wg
-YWN0aW9ucykifSwicXVlcnkiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiU2VhcmNoIHF1ZXJ5IOKAlCBtYXRjaGVz
-IG5hbWUsIHJvb20sIGNhdGVnb3J5IChzZWFyY2ggYWN0aW9uKSJ9LCJjYXRlZ29yeSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3Jp
-cHRpb24iOiJGaWx0ZXIgYnkgY2F0ZWdvcnkgZS5nLiBsaWdodGJ1bGIsIGxvY2ssIHRoZXJtb3N0YXQgKHNlYXJjaCBhY3Rpb24p
-In0sImNoYXJhY3RlcmlzdGljIjp7InR5cGUiOiJzdHJpbmciLCJkZXNjcmlwdGlvbiI6IkNoYXJhY3RlcmlzdGljIHRvIHNldCBl
-LmcuIHBvd2VyLCBicmlnaHRuZXNzLCB0YXJnZXRfdGVtcGVyYXR1cmUgKGNvbnRyb2wgYWN0aW9uKSJ9LCJ2YWx1ZSI6eyJ0eXBl
-Ijoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJWYWx1ZSB0byBzZXQgZS5nLiB0cnVlLCA3NSwgbG9ja2VkIChjb250cm9sIGFjdGlv
-bikifSwic2VydmljZV90eXBlIjp7InR5cGUiOiJzdHJpbmciLCJkZXNjcmlwdGlvbiI6IlNlcnZpY2UgVFlQRSBVVUlEIHRvIG5h
-cnJvdyB0aGUgdGFyZ2V0IHdoZW4gdGhlIGNoYXJhY3RlcmlzdGljIGV4aXN0cyBvbiBtdWx0aXBsZSBzZXJ2aWNlcyAoY29udHJv
-bCBhY3Rpb24pLiBOb3RlOiBldmVyeSBjaGFubmVsIG9mIGEgbXVsdGktZ2FuZyBzd2l0Y2ggc2hhcmVzIG9uZSBzZXJ2aWNlIHR5
-cGUsIHNvIHRoaXMgYWxvbmUgY2Fubm90IHBpY2sgYSBjaGFubmVsIOKAlCB1c2Ugc2VydmljZV9uYW1lIG9yIHNlcnZpY2VfaW5k
-ZXggZm9yIHRoYXQuIn0sInNlcnZpY2VfbmFtZSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJOYW1lIG9yIHVuaXF1
-ZSBVVUlEIG9mIHRoZSBzcGVjaWZpYyBzZXJ2aWNlIHRvIHdyaXRlIHRvIChjb250cm9sIGFjdGlvbikuIFRoaXMgaXMgaG93IHlv
-dSBwaWNrIG9uZSBjaGFubmVsIG9mIGEgbXVsdGktZ2FuZyBzd2l0Y2guIEJvdGggdmFsdWVzIGFyZSBsaXN0ZWQgaW4gdGhlIGFt
-YmlndWl0eSBlcnJvciBhbmQgaW4gdGhlIGdldCBhY3Rpb24gb3V0cHV0LiJ9LCJzZXJ2aWNlX2lkIjp7InR5cGUiOiJzdHJpbmci
-LCJkZXNjcmlwdGlvbiI6IlVuaXF1ZSBVVUlEIG9mIHRoZSBzcGVjaWZpYyBzZXJ2aWNlIHRvIHdyaXRlIHRvIChjb250cm9sIGFj
-dGlvbikuIExpc3RlZCBhcyBgc2VydmljZV9pZGAgaW4gdGhlIGFtYmlndWl0eSBlcnJvciBhbmQgYXMgYGlkYCBwZXIgc2Vydmlj
-ZSBpbiB0aGUgZ2V0IGFjdGlvbiBvdXRwdXQuIFVzZSB0aGlzIHdoZW4gdHdvIHNlcnZpY2VzIHNoYXJlIGEgbmFtZS4ifSwic2Vy
-dmljZV9pbmRleCI6eyJ0eXBlIjoibnVtYmVyIiwiZGVzY3JpcHRpb24iOiJDaGFubmVsIG51bWJlciAoU2VydmljZUxhYmVsSW5k
-ZXgpIG9mIHRoZSBzcGVjaWZpYyBzZXJ2aWNlIHRvIHdyaXRlIHRvLCBlLmcuIDEgZm9yIHRoZSBmaXJzdCBnYW5nIChjb250cm9s
-IGFjdGlvbikuIExpc3RlZCBhcyBgaW5kZXhgIGluIHRoZSBnZXQgYWN0aW9uIG91dHB1dCB3aGVuIHRoZSBhY2Nlc3NvcnkgcmVw
-b3J0cyBvbmUuIn0sInZlcmlmeSI6eyJ0eXBlIjoiYm9vbGVhbiIsImRlc2NyaXB0aW9uIjoiRGVmYXVsdCB0cnVlIChjb250cm9s
-IGFjdGlvbikuIEFmdGVyIHdyaXRpbmcsIHRoZSB2YWx1ZSBpcyByZWFkIGJhY2sgYW5kIGEgd3JpdGUgdGhlIGRldmljZSBkaWQg
-bm90IGFwcGx5IGlzIHJldHVybmVkIGFzIGFuIGVycm9yIHJhdGhlciB0aGFuIGEgc3VjY2Vzcy4gU2V0IGZhbHNlIG9ubHkgZm9y
-IGFjY2Vzc29yaWVzIHdob3NlIHJlYWRiYWNrIGlzIHVucmVsaWFibGU7IHRoZSByZXNwb25zZSB0aGVuIGNhcnJpZXMgdmVyaWZp
-Y2F0aW9uX3NraXBwZWQ6IFwiZGlzYWJsZWRcIi4ifSwibm9fcmVmcmVzaCI6eyJ0eXBlIjoiYm9vbGVhbiIsImRlc2NyaXB0aW9u
-IjoiU2tpcCBsaXZlIGNoYXJhY3RlcmlzdGljIHJlYWRzIGFuZCByZXR1cm4gbGFzdC1rbm93biArIHN0YXRpYyB2YWx1ZXMgb25s
-eSAoZ2V0IGFjdGlvbikuIE11Y2ggZmFzdGVyIGFuZCBhdm9pZHMgcGVyLWNhbGwgc2xvd2Rvd25zIHdoZW4gcmVhZGluZyBtYW55
-IGFjY2Vzc29yaWVzIGluIHNlcXVlbmNlOyBzYWZlIGZvciBzdGF0aWMgbWV0YWRhdGEgbGlrZSBzZXJpYWwgbnVtYmVyLCBtb2Rl
-bCwgYW5kIGZpcm13YXJlLiJ9fX19LHsibmFtZSI6ImhvbWVraXRfcm9vbXMiLCJkZXNjcmlwdGlvbiI6Ikxpc3QgSG9tZUtpdCBy
-b29tcyBhbmQgdGhlaXIgYWNjZXNzb3JpZXMuIERlZmF1bHRzIHRvIGNvbmZpZ3VyZWQgaG9tZSBpZiBob21lX2lkIG5vdCBzcGVj
-aWZpZWQuIiwiaW5wdXRTY2hlbWEiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsiaG9tZV9pZCI6eyJ0eXBlIjoic3Ry
-aW5nIiwiZGVzY3JpcHRpb24iOiJGaWx0ZXIgYnkgaG9tZSBVVUlELiBEZWZhdWx0cyB0byBjb25maWd1cmVkIGhvbWUgaWYgbm90
-IHNwZWNpZmllZC4ifX19fSx7Im5hbWUiOiJob21la2l0X3NjZW5lcyIsImRlc2NyaXB0aW9uIjoiTGlzdCwgZ2V0IGRldGFpbHMg
-b2YsIG9yIHRyaWdnZXIgSG9tZUtpdCBzY2VuZXMgKGFjdGlvbiBzZXRzKS4gRGVmYXVsdHMgdG8gY29uZmlndXJlZCBob21lIGlm
-IGhvbWVfaWQgbm90IHNwZWNpZmllZC4iLCJpbnB1dFNjaGVtYSI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJhY3Rp
-b24iOnsidHlwZSI6InN0cmluZyIsImVudW0iOlsibGlzdCIsImdldCIsInRyaWdnZXIiXSwiZGVzY3JpcHRpb24iOiJBY3Rpb24g
-dG8gcGVyZm9ybS4gRGVmYXVsdDogbGlzdC4gXCJnZXRcIiByZXR1cm5zIGFsbCBhY3Rpb25zIGluIHRoZSBzY2VuZS4ifSwiaG9t
-ZV9pZCI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJGaWx0ZXIgYnkgaG9tZSBVVUlEIChsaXN0L2dldCBhY3Rpb24p
-LiBEZWZhdWx0cyB0byBjb25maWd1cmVkIGhvbWUgaWYgbm90IHNwZWNpZmllZC4ifSwic2NlbmVfaWQiOnsidHlwZSI6InN0cmlu
-ZyIsImRlc2NyaXB0aW9uIjoiU2NlbmUgVVVJRCBvciBuYW1lIChnZXQvdHJpZ2dlciBhY3Rpb24pIn19fX0seyJuYW1lIjoiaG9t
-ZWtpdF9kZXZpY2VfbWFwIiwiZGVzY3JpcHRpb24iOiJHZXQgYW4gTExNLW9wdGltaXplZCBkZXZpY2UgbWFwIG9yZ2FuaXplZCBi
-eSBob21lL3pvbmUvcm9vbSB3aXRoIHNlbWFudGljIHR5cGVzLCBhdXRvLWdlbmVyYXRlZCBhbGlhc2VzLCBjb250cm9sbGFibGUg
-Y2hhcmFjdGVyaXN0aWNzLCBhbmQgc3RhdGUgc3VtbWFyaWVzLiBVc2UgdGhpcyB0byB1bmRlcnN0YW5kIHRoZSBmdWxsIGRldmlj
-ZSBsYW5kc2NhcGUgYmVmb3JlIGNvbnRyb2xsaW5nIGRldmljZXMuIiwiaW5wdXRTY2hlbWEiOnsidHlwZSI6Im9iamVjdCIsInBy
-b3BlcnRpZXMiOnsiaG9tZV9pZCI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJGaWx0ZXIgYnkgaG9tZSBVVUlELiBE
-ZWZhdWx0cyB0byBjb25maWd1cmVkIGhvbWUgaWYgbm90IHNwZWNpZmllZC4ifX19fSx7Im5hbWUiOiJob21la2l0X21hbmFnZSIs
-ImRlc2NyaXB0aW9uIjoiTWFuYWdlIEhvbWVLaXQgc3RydWN0dXJlOiByZW5hbWUgYWNjZXNzb3JpZXMsIGFzc2lnbiByb29tcyAo
-d2l0aCBVVUlEIHN1cHBvcnQgZm9yIGR1cGxpY2F0ZSBuYW1lcyksIGNyZWF0ZS9yZW5hbWUvcmVtb3ZlIHJvb21zLCByZW1vdmUg
-YWNjZXNzb3JpZXMsIGNyZWF0ZS9yZW1vdmUgem9uZXMsIGFuZCBtYW5hZ2Ugem9uZSBtZW1iZXJzaGlwLiBBbGwgYWN0aW9ucyBz
-dXBwb3J0IGRyeV9ydW4gZm9yIHNhZmUgcHJldmlld3MuIiwiaW5wdXRTY2hlbWEiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRp
-ZXMiOnsiYWN0aW9uIjp7InR5cGUiOiJzdHJpbmciLCJlbnVtIjpbInJlbmFtZSIsInJlbW92ZV9hY2Nlc3NvcnkiLCJhc3NpZ25f
-cm9vbXMiLCJjcmVhdGVfcm9vbSIsInJlbmFtZV9yb29tIiwicmVtb3ZlX3Jvb20iLCJjcmVhdGVfem9uZSIsInJlbW92ZV96b25l
-IiwiYWRkX3Jvb21fdG9fem9uZSIsInJlbW92ZV9yb29tX2Zyb21fem9uZSJdLCJkZXNjcmlwdGlvbiI6Ik1hbmFnZW1lbnQgYWN0
-aW9uIHRvIHBlcmZvcm0ifSwiaG9tZV9pZCI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJIb21lIFVVSUQgb3IgbmFt
-ZS4gRGVmYXVsdHMgdG8gY29uZmlndXJlZCBob21lLiJ9LCJpZCI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJBY2Nl
-c3NvcnksIHJvb20sIG9yIHpvbmUgbmFtZS9VVUlEIChhY3Rpb24tZGVwZW5kZW50KSJ9LCJuZXdfbmFtZSI6eyJ0eXBlIjoic3Ry
-aW5nIiwiZGVzY3JpcHRpb24iOiJOZXcgbmFtZSBmb3IgcmVuYW1lIGFjdGlvbnMifSwibmFtZSI6eyJ0eXBlIjoic3RyaW5nIiwi
-ZGVzY3JpcHRpb24iOiJOYW1lIGZvciBjcmVhdGUgYWN0aW9ucyAoY3JlYXRlX3Jvb20sIGNyZWF0ZV96b25lKSJ9LCJyb29tIjp7
-InR5cGUiOiJzdHJpbmciLCJkZXNjcmlwdGlvbiI6IlJvb20gbmFtZS9VVUlEICh6b25lIG1lbWJlcnNoaXAgYWN0aW9ucykifSwi
-em9uZSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJab25lIG5hbWUvVVVJRCAoem9uZSBtZW1iZXJzaGlwIGFjdGlv
-bnMpIn0sImFzc2lnbm1lbnRzIjp7InR5cGUiOiJhcnJheSIsIml0ZW1zIjp7InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7
-InV1aWQiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiQWNjZXNzb3J5IFVVSUQgKHByZWZlcnJlZCBmb3IgZHVwbGlj
-YXRlIG5hbWVzKSJ9LCJhY2Nlc3NvcnkiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiQWNjZXNzb3J5IG5hbWUgKGZh
-bGxiYWNrLCBjYXNlLWluc2Vuc2l0aXZlKSJ9LCJyb29tIjp7InR5cGUiOiJzdHJpbmciLCJkZXNjcmlwdGlvbiI6IlRhcmdldCBy
-b29tIG5hbWUgKGNyZWF0ZWQgaWYgbWlzc2luZykifX0sInJlcXVpcmVkIjpbInJvb20iXX0sImRlc2NyaXB0aW9uIjoiQXJyYXkg
-b2Ygcm9vbSBhc3NpZ25tZW50cyAoYXNzaWduX3Jvb21zIGFjdGlvbikuIEVhY2ggbXVzdCBoYXZlIFwicm9vbVwiIHBsdXMgZWl0
-aGVyIFwidXVpZFwiIG9yIFwiYWNjZXNzb3J5XCIuIn0sImRyeV9ydW4iOnsidHlwZSI6ImJvb2xlYW4iLCJkZXNjcmlwdGlvbiI6
-IlByZXZpZXcgY2hhbmdlcyB3aXRob3V0IGFwcGx5aW5nIChkZWZhdWx0OiBmYWxzZSkifX0sInJlcXVpcmVkIjpbImFjdGlvbiJd
-fX0seyJuYW1lIjoiaG9tZWtpdF9jb25maWciLCJkZXNjcmlwdGlvbiI6IlZpZXcgb3IgdXBkYXRlIEhvbWVDbGF3IGNvbmZpZ3Vy
-YXRpb24uIFNldCBhIGRlZmF1bHQgaG9tZSwgb3IgY29uZmlndXJlIGRldmljZSBmaWx0ZXJpbmcgdG8gY29udHJvbCB3aGljaCBh
-Y2Nlc3NvcmllcyBhcmUgZXhwb3NlZC4iLCJpbnB1dFNjaGVtYSI6eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJhY3Rp
-b24iOnsidHlwZSI6InN0cmluZyIsImVudW0iOlsiZ2V0Iiwic2V0Il0sImRlc2NyaXB0aW9uIjoiQWN0aW9uIHRvIHBlcmZvcm0u
-IERlZmF1bHQ6IGdldCJ9LCJkZWZhdWx0X2hvbWVfaWQiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiSG9tZSBVVUlE
-IG9yIG5hbWUgdG8gc2V0IGFzIGFjdGl2ZSBob21lIChzZXQgYWN0aW9uKS4gQWxsIGNvbW1hbmRzIG9wZXJhdGUgb24gdGhlIGFj
-dGl2ZSBob21lLiJ9LCJhY2Nlc3NvcnlfZmlsdGVyX21vZGUiOnsidHlwZSI6InN0cmluZyIsImVudW0iOlsiYWxsIiwiYWxsb3ds
-aXN0Il0sImRlc2NyaXB0aW9uIjoiRmlsdGVyIG1vZGU6IFwiYWxsXCIgZXhwb3NlcyBldmVyeSBhY2Nlc3NvcnksIFwiYWxsb3ds
-aXN0XCIgb25seSBleHBvc2VzIHNlbGVjdGVkIGFjY2Vzc29yaWVzIChzZXQgYWN0aW9uKS4ifSwiYWxsb3dlZF9hY2Nlc3Nvcnlf
-aWRzIjp7InR5cGUiOiJhcnJheSIsIml0ZW1zIjp7InR5cGUiOiJzdHJpbmcifSwiZGVzY3JpcHRpb24iOiJBcnJheSBvZiBhY2Nl
-c3NvcnkgVVVJRHMgdG8gZXhwb3NlIHdoZW4gZmlsdGVyIG1vZGUgaXMgXCJhbGxvd2xpc3RcIiAoc2V0IGFjdGlvbikuIn19fX0s
-eyJuYW1lIjoiaG9tZWtpdF9hdXRvbWF0aW9ucyIsImRlc2NyaXB0aW9uIjoiTWFuYWdlIEhvbWVLaXQgYXV0b21hdGlvbnMuIExp
-c3QgZXhpc3RpbmcgYXV0b21hdGlvbnMsIGluc3BlY3QgdGhlaXIgZXZlbnRzIGFuZCBsaW5rZWQgc2NlbmVzLCBjcmVhdGUgYXV0
-b21hdGlvbnMgdHJpZ2dlcmVkIGJ5IGFueSBjaGFyYWN0ZXJpc3RpYyBjaGFuZ2UgKGJ1dHRvbiBwcmVzc2VzLCBtb3Rpb24gc2Vu
-c29ycywgY29udGFjdCBzZW5zb3JzLCBvY2N1cGFuY3ksIGV0Yy4pIG9yIGJ5IGEgdGltZSBvZiBkYXkgKGNsb2NrIG9yIHN1bnJp
-c2Uvc3Vuc2V0KSwgZGVsZXRlIGF1dG9tYXRpb25zLCBvciBlbmFibGUvZGlzYWJsZSB0aGVtLiBGb3IgY2hhcmFjdGVyaXN0aWMt
-Y2hhbmdlIHRyaWdnZXJzIHVzZSBhY3Rpb249Y3JlYXRlIHdpdGggcHJlc3NfdHlwZSAoYnV0dG9ucykgb3IgY2hhcmFjdGVyaXN0
-aWMrdHJpZ2dlcl92YWx1ZSAoc2Vuc29ycykuIEZvciB0aW1lLW9mLWRheSB0cmlnZ2VycyB1c2UgYWN0aW9uPWNyZWF0ZV90aW1l
-IHdpdGggdGhlIGB0aW1lYCBmaWVsZCAoSEg6TU0sIHN1bnJpc2UsIHN1bnNldCwgb3IgPHN1bi1ldmVudD7CsU4pLiBCb3RoIGNy
-ZWF0ZSBhY3Rpb25zIGFjY2VwdCB0aGUgc2FtZSBwcmVkaWNhdGUgdm9jYWJ1bGFyeTogd2Vla2RheXMsIGNvbmRpdGlvbnMsIHRp
-bWVfYWZ0ZXIsIHRpbWVfYmVmb3JlLCBkdXJhdGlvbl9zZWNvbmRzLiBVc2UgZHVyYXRpb25fc2Vjb25kcyB0byBhdXRvLXJldmVy
-dCBhY3Rpb25zIGFmdGVyIE4gc2Vjb25kcyAoZS5nLiBtb3Rpb24tdHJpZ2dlcmVkIGxpZ2h0cyBvciBzdW5zZXQgcG9yY2ggbGln
-aHRzIHRoYXQgdHVybiBvZmYgYWZ0ZXIgYSBkZWxheSkuIFVzZSBhY3Rpb249YWRkX2NvbmRpdGlvbiB0byBhcHBlbmQgYSBjaGFy
-YWN0ZXJpc3RpYyBjb25kaXRpb24gKEFORGVkKSB0byBhbiBleGlzdGluZyBhdXRvbWF0aW9uIGluIHBsYWNlIOKAlCB0aGUgdHJp
-Z2dlciBVVUlEIGlzIHByZXNlcnZlZCwgc28gYnV0dG9uIGJpbmRpbmdzIGFuZCBTaXJpIHJlZmVyZW5jZXMgc3Vydml2ZS4gTGlz
-dC9nZXQgYWxzbyBzdXJmYWNlIEhNVGltZXJUcmlnZ2VyIGF1dG9tYXRpb25zIChBcHBsZSBIb21lIG5hdGl2ZSB0aW1lIGF1dG9t
-YXRpb25zKSBhbmQgSE1DYWxlbmRhckV2ZW50IC8gSE1TaWduaWZpY2FudFRpbWVFdmVudCAvIEhNRHVyYXRpb25FdmVudCBkZXRh
-aWxzIG9uIGV2ZW50IHRyaWdnZXJzOyByZXN1bHQgcm93cyBpbmNsdWRlIHRyaWdnZXJfdHlwZSAoXCJidXR0b25cIiB8IFwiY2hh
-cmFjdGVyaXN0aWNcIiB8IFwiY2FsZW5kYXJcIiB8IFwic2lnbmlmaWNhbnRfdGltZVwiIHwgXCJ0aW1lclwiIHwgXCJ1bmtub3du
-XCIpIGFuZCwgd2hlcmUgYXBwbGljYWJsZSwgZmlyZV90aW1lLCBmaXJlX2RhdGUsIGFuZCBkdXJhdGlvbl9zZWNvbmRzLiBEZWxl
-dGUvZW5hYmxlL2Rpc2FibGUgYWNjZXB0IGFueSB0cmlnZ2VyIHN1YnR5cGUuIE5vdGU6IHRoZSBwcmVkaWNhdGUtY29tcG9zaXRp
-b24gZmVhdHVyZXMgKGNvbmRpdGlvbnMsIHRpbWVfYWZ0ZXIvdGltZV9iZWZvcmUsIGFkZF9jb25kaXRpb24pIGFyZSBidWlsdCBv
-biBzdGFuZGFyZCBITUV2ZW50VHJpZ2dlciBwcmVkaWNhdGUgY29tcG9zaXRpb24g4oCUIHN1cHBvcnRlZCBieSBBcHBsZSdzIEhv
-bWVLaXQgZnJhbWV3b3JrIEFQSXMgYnV0IG5vdCB5ZXQgc3VyZmFjZWQgaW4gdGhlIEhvbWUgYXBwJ3MgQXV0b21hdGlvbnMgdGFi
-LiBUaGV5IG1pcnJvciB0aGUgcnVsZS1lZGl0b3IgY2FwYWJpbGl0aWVzIGV4cG9zZWQgYnkgdGhpcmQtcGFydHkgSG9tZUtpdCBh
-cHBzIGxpa2UgQ29udHJvbGxlciBmb3IgSG9tZUtpdC4gUnVsZXMgY3JlYXRlZCBvciBtb2RpZmllZCB0aGlzIHdheSBleGVjdXRl
-IGNvcnJlY3RseSB2aWEgSG9tZUtpdDsgdXNlIGxpc3QvZ2V0IHRvIGluc3BlY3QgdGhlbSBzaW5jZSB0aGV5IG1heSBub3QgYmUg
-ZWRpdGFibGUgZnJvbSB0aGUgSG9tZSBhcHAuIiwiaW5wdXRTY2hlbWEiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsi
-YWN0aW9uIjp7InR5cGUiOiJzdHJpbmciLCJlbnVtIjpbImxpc3QiLCJnZXQiLCJjcmVhdGUiLCJjcmVhdGVfdGltZSIsImRlbGV0
-ZSIsImVuYWJsZSIsImRpc2FibGUiLCJhZGRfY29uZGl0aW9uIl0sImRlc2NyaXB0aW9uIjoiQWN0aW9uIHRvIHBlcmZvcm0uIERl
-ZmF1bHQ6IGxpc3QifSwiaG9tZV9pZCI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJIb21lIFVVSUQgb3IgbmFtZS4g
-RGVmYXVsdHMgdG8gY29uZmlndXJlZCBob21lLiJ9LCJpZCI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJBdXRvbWF0
-aW9uIFVVSUQgb3IgbmFtZSAoZ2V0L2RlbGV0ZS9lbmFibGUvZGlzYWJsZSBhY3Rpb25zKSJ9LCJuYW1lIjp7InR5cGUiOiJzdHJp
-bmciLCJkZXNjcmlwdGlvbiI6IkF1dG9tYXRpb24gbmFtZSAoY3JlYXRlIC8gY3JlYXRlX3RpbWUgYWN0aW9ucykifSwiYWNjZXNz
-b3J5X2lkIjp7InR5cGUiOiJzdHJpbmciLCJkZXNjcmlwdGlvbiI6IlRyaWdnZXIgYWNjZXNzb3J5IFVVSUQgb3IgbmFtZSAoY3Jl
-YXRlIGFjdGlvbikifSwidGltZSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJUaW1lIG9mIGRheSB0aGUgYXV0b21h
-dGlvbiBmaXJlcyAoY3JlYXRlX3RpbWUgYWN0aW9uLCByZXF1aXJlZCkuIEZvcm1hdDogXCJISDpNTVwiIGZvciBhIHdhbGwtY2xv
-Y2sgdGltZSAoZS5nLiBcIjA2OjMwXCIsIFwiMTc6NDVcIjsgYm90aCBmaWVsZHMgbXVzdCBiZSB6ZXJvLXBhZGRlZCB0d28gZGln
-aXRzIOKAlCBcIjY6MzBcIiBpcyByZWplY3RlZCksIFwic3VucmlzZVwiL1wic3Vuc2V0XCIgZm9yIHN1bi1yZWxhdGl2ZSBldmVu
-dHMsIG9yIFwiPHN1bi1ldmVudD7CsU5cIiB3aGVyZSBOIGlzIG1pbnV0ZXMgKGUuZy4gXCJzdW5zZXQtMzBcIiwgXCJzdW5yaXNl
-KzE1XCIpLiBPZmZzZXRzIGxhcmdlciB0aGFuIDE0NDAgbWludXRlcyAoMjRoKSBhcmUgcmVqZWN0ZWQuIEltcGxlbWVudGVkIGFz
-IEhNQ2FsZW5kYXJFdmVudCBmb3IgSEg6TU0gYW5kIEhNU2lnbmlmaWNhbnRUaW1lRXZlbnQgZm9yIHN1bnJpc2Uvc3Vuc2V0LiBB
-bGwgb3RoZXIgcHJlZGljYXRlIGZsYWdzICh3ZWVrZGF5cywgY29uZGl0aW9ucywgdGltZV9hZnRlciwgdGltZV9iZWZvcmUsIGR1
-cmF0aW9uX3NlY29uZHMpIGNvbXBvc2Ugd2l0aCBgdGltZWAgdGhlIHNhbWUgd2F5IHRoZXkgZG8gb24gdGhlIGNyZWF0ZSBhY3Rp
-b24g4oCUIGB0aW1lYCBpcyB0aGUgdHJpZ2dlciBldmVudCwgdGhvc2UgYXJlIHRoZSBnYXRpbmcgcHJlZGljYXRlcy4ifSwic2Nl
-bmVfaWQiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiU2NlbmUgVVVJRCBvciBuYW1lIHRvIHRyaWdnZXIgKGNyZWF0
-ZSAvIGNyZWF0ZV90aW1lIGFjdGlvbnMpLiBBbHRlcm5hdGl2ZSB0byBhY3Rpb25zLiJ9LCJhY3Rpb25zIjp7InR5cGUiOiJhcnJh
-eSIsIml0ZW1zIjp7InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7ImFjY2Vzc29yeSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVz
-Y3JpcHRpb24iOiJUYXJnZXQgYWNjZXNzb3J5IFVVSUQgKHN0cm9uZ2x5IHByZWZlcnJlZCkgb3IgbmFtZSJ9LCJwcm9wZXJ0eSI6
-eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJDaGFyYWN0ZXJpc3RpYyB0byBzZXQgKGUuZy4sIHBvd2VyLCBicmlnaHRu
-ZXNzLCBjb2xvcl90ZW1wZXJhdHVyZSkifSwiY2hhcmFjdGVyaXN0aWMiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoi
-QWxpYXMgZm9yIFwicHJvcGVydHlcIiDigJQgcHJvdmlkZSBvbmUgb3IgdGhlIG90aGVyIn0sInZhbHVlIjp7InR5cGUiOiJzdHJp
-bmciLCJkZXNjcmlwdGlvbiI6IlRhcmdldCB2YWx1ZSBhcyBzdHJpbmcgKGUuZy4sIFwidHJ1ZVwiLCBcIjUwXCIsIFwiMzQ0XCIp
-In0sInJvb20iOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiUm9vbSBuYW1lIGZvciBkaXNhbWJpZ3VhdGlvbiAob3B0
-aW9uYWwpIn19LCJyZXF1aXJlZCI6WyJhY2Nlc3NvcnkiLCJ2YWx1ZSJdLCJhbnlPZiI6W3sicmVxdWlyZWQiOlsicHJvcGVydHki
-XX0seyJyZXF1aXJlZCI6WyJjaGFyYWN0ZXJpc3RpYyJdfV19LCJkZXNjcmlwdGlvbiI6IklubGluZSBhY3Rpb25zIGZvciB0aGUg
-YXV0b21hdGlvbiAoY3JlYXRlIC8gY3JlYXRlX3RpbWUgYWN0aW9ucykuIEFsdGVybmF0aXZlIHRvIHNjZW5lX2lkLiBDcmVhdGVz
-IGEgc2NlbmUgbmFtZWQgYWZ0ZXIgdGhlIGF1dG9tYXRpb24uIEVhY2ggYWN0aW9uIHNldHMgb25lIGNoYXJhY3RlcmlzdGljIG9u
-IG9uZSBhY2Nlc3NvcnkuIn0sInByZXNzX3R5cGUiOnsidHlwZSI6Im51bWJlciIsImVudW0iOlswLDEsMl0sImRlc2NyaXB0aW9u
-IjoiQnV0dG9uIHByZXNzIHR5cGU6IDA9c2luZ2xlIChkZWZhdWx0KSwgMT1kb3VibGUsIDI9bG9uZyBwcmVzcy4gRm9yIGJ1dHRv
-biB0cmlnZ2VycyBvbmx5OyBtdXR1YWxseSBleGNsdXNpdmUgd2l0aCBjaGFyYWN0ZXJpc3RpYy4gKGNyZWF0ZSBhY3Rpb24pIn0s
-ImNoYXJhY3RlcmlzdGljIjp7InR5cGUiOiJzdHJpbmciLCJkZXNjcmlwdGlvbiI6IkNoYXJhY3RlcmlzdGljIG5hbWUgdG8gdHJp
-Z2dlciBvbiAoZS5nLiwgbW90aW9uX2RldGVjdGVkLCBjb250YWN0X3N0YXRlLCBvY2N1cGFuY3lfZGV0ZWN0ZWQsIGN1cnJlbnRf
-dGVtcGVyYXR1cmUpLiBBbHRlcm5hdGl2ZSB0byBwcmVzc190eXBlIGZvciBub24tYnV0dG9uIHRyaWdnZXJzLiAoY3JlYXRlIGFj
-dGlvbikifSwidHJpZ2dlcl92YWx1ZSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJWYWx1ZSB0aGF0IHRyaWdnZXJz
-IHRoZSBhdXRvbWF0aW9uIChlLmcuLCBcInRydWVcIiwgXCJmYWxzZVwiLCBcIjFcIiwgXCIwXCIpLiBSZXF1aXJlZCB3aGVuIGNo
-YXJhY3RlcmlzdGljIGlzIHNldC4gVXNlcyBleGFjdCB2YWx1ZSBtYXRjaGluZy4gKGNyZWF0ZSBhY3Rpb24pIn0sInNlcnZpY2Vf
-aW5kZXgiOnsidHlwZSI6Im51bWJlciIsImRlc2NyaXB0aW9uIjoiQnV0dG9uIGluZGV4IGZvciBtdWx0aS1idXR0b24gYWNjZXNz
-b3JpZXMgKDEgb3IgMikuIEZvciBidXR0b24gdHJpZ2dlcnMgb25seS4gKGNyZWF0ZSBhY3Rpb24pIn0sIndlZWtkYXlzIjp7InR5
-cGUiOiJhcnJheSIsIml0ZW1zIjp7InR5cGUiOiJudW1iZXIiLCJlbnVtIjpbMSwyLDMsNCw1LDYsN119LCJkZXNjcmlwdGlvbiI6
-IlJlc3RyaWN0IHRoZSBhdXRvbWF0aW9uIHRvIGZpcmUgb25seSBvbiB0aGVzZSB3ZWVrZGF5cyAoMT1TdW4sIDI9TW9uLCAuLi4s
-IDc9U2F0KS4gV2hlbiBvbWl0dGVkLCBjaGFyYWN0ZXJpc3RpYy10cmlnZ2VyIGF1dG9tYXRpb25zIChjcmVhdGUpIGZpcmUgZXZl
-cnkgZGF5OyB0aW1lLW9mLWRheSBhdXRvbWF0aW9ucyAoY3JlYXRlX3RpbWUpIGF1dG8tZmlsbCBhbGwgNyBkYXlzIHNpbmNlIGlP
-UyAxNSsgbWFya3MgdGltZS1jb25kaXRpb25hbCBhdXRvbWF0aW9ucyB3aXRob3V0IHdlZWtkYXkgZ2F0aW5nIGFzIFwidW5yZWxp
-YWJsZVwiLiBTZXR0aW5nIHRpbWVfYWZ0ZXIvdGltZV9iZWZvcmUgb24gY3JlYXRlIHdpdGggbm8gd2Vla2RheXMgYWxzbyBhdXRv
-LWZpbGxzIGFsbCA3IGRheXMgYW5kIHNldHMgYHdlZWtkYXlzX2F1dG9fZmlsbGVkOiB0cnVlYCBpbiB0aGUgcmVzcG9uc2UuIChj
-cmVhdGUgLyBjcmVhdGVfdGltZSBhY3Rpb25zKSJ9LCJjb25kaXRpb25zIjp7InR5cGUiOiJhcnJheSIsIml0ZW1zIjp7InR5cGUi
-OiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7ImFjY2Vzc29yeSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJDb25kaXRp
-b24gYWNjZXNzb3J5IFVVSUQgKHByZWZlcnJlZCkgb3IgbmFtZSJ9LCJwcm9wZXJ0eSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3Jp
-cHRpb24iOiJDaGFyYWN0ZXJpc3RpYyBuYW1lIChlLmcuLCBjb250YWN0X3N0YXRlLCBvY2N1cGFuY3lfZGV0ZWN0ZWQsIHBvd2Vy
-KSJ9LCJjaGFyYWN0ZXJpc3RpYyI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJBbGlhcyBmb3IgXCJwcm9wZXJ0eVwi
-IOKAlCBwcm92aWRlIG9uZSBvciB0aGUgb3RoZXIifSwidmFsdWUiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiUmVx
-dWlyZWQgdmFsdWUgYXMgc3RyaW5nIChlLmcuLCBcInRydWVcIiwgXCIwXCIsIFwiNTBcIikuIFVzZXMgZXhhY3QgbWF0Y2ggKD09
-KS4ifSwicm9vbSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJSb29tIG5hbWUgZm9yIGFjY2Vzc29yeSBkaXNhbWJp
-Z3VhdGlvbiB3aGVuIG11bHRpcGxlIGFjY2Vzc29yaWVzIHNoYXJlIGEgbmFtZSAob3B0aW9uYWwpIn19LCJyZXF1aXJlZCI6WyJh
-Y2Nlc3NvcnkiLCJ2YWx1ZSJdLCJhbnlPZiI6W3sicmVxdWlyZWQiOlsicHJvcGVydHkiXX0seyJyZXF1aXJlZCI6WyJjaGFyYWN0
-ZXJpc3RpYyJdfV19LCJkZXNjcmlwdGlvbiI6IkV4dHJhIGNoYXJhY3RlcmlzdGljIHByZWRpY2F0ZXMgQU5EZWQgaW50byB0aGUg
-dHJpZ2dlciBwcmVkaWNhdGUuIFRoZSB0cmlnZ2VyIGZpcmVzIG9ubHkgd2hlbiB0aGUgdHJpZ2dlciBldmVudCBoYXBwZW5zIEFO
-RCBldmVyeSBjb25kaXRpb24gaG9sZHMuIEV4YW1wbGU6IHBvcmNoIG1vdGlvbiAob3Igc3Vuc2V0LCBvbiBjcmVhdGVfdGltZSkg
-dGhhdCBvbmx5IHRyaWdnZXJzIHdoZW4gdGhlIGZyb250IGRvb3IgaXMgY2xvc2VkIEFORCBub2JvZHkgaXMgaG9tZS4gRWFjaCBj
-b25kaXRpb24gaXMgYSAoY2hhcmFjdGVyaXN0aWMgPT0gdmFsdWUpIG1hdGNoIGFnYWluc3QgYW55IGFjY2Vzc29yeSBpbiB0aGUg
-aG9tZS4gKGNyZWF0ZSAvIGNyZWF0ZV90aW1lIGFjdGlvbnMpIn0sInRpbWVfYWZ0ZXIiOnsidHlwZSI6ImFycmF5IiwiaXRlbXMi
-OnsidHlwZSI6InN0cmluZyJ9LCJkZXNjcmlwdGlvbiI6IlRpbWUgcHJlZGljYXRlcyBBTkRlZCBpbnRvIHRoZSB0cmlnZ2VyIHNv
-IGl0IG9ubHkgZmlyZXMgYWZ0ZXIgdGhlIGdpdmVuIHRpbWUuIFNhbWUgdm9jYWJ1bGFyeSBhcyB0aGUgYHRpbWVgIGZpZWxkOiBc
-IkhIOk1NXCIgZm9yIGEgd2FsbC1jbG9jayB0aW1lICh6ZXJvLXBhZGRlZCwgZS5nLiBcIjA3OjAwXCIpIG9yIFwiPHN1bnJpc2V8
-c3Vuc2V0PlvCsU5dXCIgd2hlcmUgTiBpcyBtaW51dGVzIChlLmcuLCBcInN1bnNldC0zMFwiLCBcInN1bnJpc2UrMTVcIiwgXCJz
-dW5zZXRcIikuIE9mZnNldHMgbGFyZ2VyIHRoYW4gMTQ0MCBtaW51dGVzIGFyZSByZWplY3RlZC4gQ29tYmluZSB3aXRoIHRpbWVf
-YmVmb3JlIGZvciBhIHdpbmRvdyAoZS5nLiwgdGltZV9hZnRlcj1bXCIwNzowMFwiXSArIHRpbWVfYmVmb3JlPVtcIjIwOjMwXCJd
-IGZvciBcIm9ubHkgZHVyaW5nIHRoZSBkYXlcIiwgb3IgdGltZV9hZnRlcj1bXCJzdW5zZXQtMzBcIl0gKyB0aW1lX2JlZm9yZT1b
-XCJzdW5yaXNlKzE1XCJdIGZvciBcImJldHdlZW4gZHVzayBhbmQgZGF3blwiKS4gT24gY3JlYXRlX3RpbWUgdGhlc2UgYXJlIGdh
-dGluZyBwcmVkaWNhdGVzIG9uIHRvcCBvZiB0aGUgYHRpbWVgIHRyaWdnZXIgZXZlbnQsIG5vdCB0aGUgdHJpZ2dlciBpdHNlbGYu
-IFdoZW4gc2V0IHdpdGhvdXQgZXhwbGljaXQgd2Vla2RheXMsIEhvbWVDbGF3IGF1dG8tZmlsbHMgYWxsIDcgZGF5czsgc2VlIHRo
-ZSB3ZWVrZGF5cyBmaWVsZC4gKGNyZWF0ZSAvIGNyZWF0ZV90aW1lIGFjdGlvbnMpIn0sInRpbWVfYmVmb3JlIjp7InR5cGUiOiJh
-cnJheSIsIml0ZW1zIjp7InR5cGUiOiJzdHJpbmcifSwiZGVzY3JpcHRpb24iOiJUaW1lIHByZWRpY2F0ZXMgQU5EZWQgaW50byB0
-aGUgdHJpZ2dlciBzbyBpdCBvbmx5IGZpcmVzIGJlZm9yZSB0aGUgZ2l2ZW4gdGltZS4gU2FtZSBmb3JtYXQgYW5kIG9mZnNldCBy
-dWxlcyBhcyB0aW1lX2FmdGVyLiAoY3JlYXRlIC8gY3JlYXRlX3RpbWUgYWN0aW9ucykifSwiZHVyYXRpb25fc2Vjb25kcyI6eyJ0
-eXBlIjoiaW50ZWdlciIsIm1pbmltdW0iOjEsIm1heGltdW0iOjg2NDAwLCJkZXNjcmlwdGlvbiI6IkF1dG8tcmV2ZXJ0IHRoZSB0
-cmlnZ2VyJ3MgYWN0aW9ucyBhZnRlciB0aGlzIG1hbnkgc2Vjb25kcyAoMS04NjQwMCwgaS5lLiB1cCB0byAyNCBob3VycykuIElt
-cGxlbWVudGVkIGFzIGFuIEhNRHVyYXRpb25FdmVudCBhdHRhY2hlZCB0byB0aGUgdHJpZ2dlcidzIGVuZEV2ZW50cyDigJQgSG9t
-ZUtpdCBoYW5kbGVzIHRoZSByZXZlcnQgbmF0aXZlbHksIG5vIGZvbGxvdy11cCBhdXRvbWF0aW9uIHJlcXVpcmVkLiBDb21tb24g
-dXNlIGNhc2VzOiBtb3Rpb24tdHJpZ2dlcmVkIGxpZ2h0cyB0aGF0IHNob3VsZCB0dXJuIG9mZiBhZ2FpbiBhZnRlciBhIGRlbGF5
-IChlLmcuIGBkdXJhdGlvbl9zZWNvbmRzOiAzMDBgIGZvciBhIDUtbWludXRlIGhvbGQpLCBvciBzdW5zZXQgcG9yY2ggbGlnaHRz
-IHRoYXQgc2hvdWxkIHR1cm4gb2ZmIGFmdGVyIGFuIGhvdXIuIChjcmVhdGUgLyBjcmVhdGVfdGltZSBhY3Rpb25zKSJ9LCJjb25k
-aXRpb24iOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsiYWNjZXNzb3J5Ijp7InR5cGUiOiJzdHJpbmciLCJkZXNjcmlw
-dGlvbiI6IkNvbmRpdGlvbiBhY2Nlc3NvcnkgVVVJRCAocHJlZmVycmVkKSBvciBuYW1lIn0sInByb3BlcnR5Ijp7InR5cGUiOiJz
-dHJpbmciLCJkZXNjcmlwdGlvbiI6IkNoYXJhY3RlcmlzdGljIG5hbWUgKGUuZy4sIGNvbnRhY3Rfc3RhdGUsIG9jY3VwYW5jeV9k
-ZXRlY3RlZCwgcG93ZXIpIn0sImNoYXJhY3RlcmlzdGljIjp7InR5cGUiOiJzdHJpbmciLCJkZXNjcmlwdGlvbiI6IkFsaWFzIGZv
-ciBcInByb3BlcnR5XCIg4oCUIHByb3ZpZGUgb25lIG9yIHRoZSBvdGhlciJ9LCJ2YWx1ZSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVz
-Y3JpcHRpb24iOiJSZXF1aXJlZCB2YWx1ZSBhcyBzdHJpbmcgKGUuZy4sIFwidHJ1ZVwiLCBcIjBcIiwgXCI1MFwiKS4gVXNlcyBl
-eGFjdCBtYXRjaCAoPT0pLiJ9LCJyb29tIjp7InR5cGUiOiJzdHJpbmciLCJkZXNjcmlwdGlvbiI6IlJvb20gbmFtZSBmb3IgYWNj
-ZXNzb3J5IGRpc2FtYmlndWF0aW9uIHdoZW4gbXVsdGlwbGUgYWNjZXNzb3JpZXMgc2hhcmUgYSBuYW1lIChvcHRpb25hbCkifX0s
-InJlcXVpcmVkIjpbImFjY2Vzc29yeSIsInZhbHVlIl0sImFueU9mIjpbeyJyZXF1aXJlZCI6WyJwcm9wZXJ0eSJdfSx7InJlcXVp
-cmVkIjpbImNoYXJhY3RlcmlzdGljIl19XSwiZGVzY3JpcHRpb24iOiJTaW5nbGUgY2hhcmFjdGVyaXN0aWMgY29uZGl0aW9uIChv
-YmplY3Qg4oCUIG5vdGUgdGhlIHNpbmd1bGFyIGZpZWxkIG5hbWUsIGRpc3RpbmN0IGZyb20gdGhlIHBsdXJhbCBgY29uZGl0aW9u
-c2AgYXJyYXkgdXNlZCBieSBjcmVhdGUgLyBjcmVhdGVfdGltZSkgdG8gYXBwZW5kIChBTkRlZCkgdG8gYW4gZXhpc3RpbmcgYXV0
-b21hdGlvbidzIHRyaWdnZXIgcHJlZGljYXRlLiBUbyBhZGQgbXVsdGlwbGUgY29uZGl0aW9ucywgY2FsbCBhZGRfY29uZGl0aW9u
-IHJlcGVhdGVkbHkg4oCUIGVhY2ggY2FsbCBwcmVzZXJ2ZXMgdGhlIHRyaWdnZXIgVVVJRCwgc28gcGh5c2ljYWwgYnV0dG9uIGJp
-bmRpbmdzLCBTaXJpIHJlZmVyZW5jZXMsIGFuZCBvdGhlciBVVUlELWtleWVkIGludGVncmF0aW9ucyBzdXJ2aXZlIGV2ZXJ5IG1v
-ZGlmaWNhdGlvbi4gVGhlIHJlYWQtc2lkZSBkZWNvZGVyIChsaXN0L2dldCkgc3VyZmFjZXMgdGhlIG5ldyBjb25kaXRpb24gYXV0
-b21hdGljYWxseS4gVG8gcmVwbGFjZSBhbiBleGlzdGluZyBjb25kaXRpb24gc2V0LCBkZWxldGUgdGhlIGF1dG9tYXRpb24gYW5k
-IHJlY3JlYXRlIGl0LiAoYWRkX2NvbmRpdGlvbiBhY3Rpb24pIn0sImRyeV9ydW4iOnsidHlwZSI6ImJvb2xlYW4iLCJkZXNjcmlw
-dGlvbiI6IlByZXZpZXcgY2hhbmdlcyB3aXRob3V0IGFwcGx5aW5nIChjcmVhdGUvY3JlYXRlX3RpbWUvZGVsZXRlL2FkZF9jb25k
-aXRpb24gYWN0aW9ucykifX0sInJlcXVpcmVkIjpbImFjdGlvbiJdfX0seyJuYW1lIjoiaG9tZWtpdF93ZWJob29rIiwiZGVzY3Jp
-cHRpb24iOiJNYW5hZ2Ugd2ViaG9vayBjb25maWd1cmF0aW9uIGZvciBwdXNoaW5nIEhvbWVLaXQgZXZlbnRzIHRvIE9wZW5DbGF3
-IG9yIG90aGVyIHNlcnZpY2VzLiBBY3Rpb25zOiBzZXR1cCAoY29uZmlndXJlIFVSTCwgdG9rZW4sIGFuZCBlbmFibGUgaW4gb25l
-IHN0ZXApLCB0ZXN0IChzZW5kIGEgdGVzdCBldmVudCBhbmQgc2hvdyB0aGUgSFRUUCByZXNwb25zZSksIHJlc2V0IChyZXNldCB0
-aGUgY2lyY3VpdCBicmVha2VyKSwgc3RhdHVzIChzaG93IHdlYmhvb2sgaGVhbHRoIGFuZCBkZWxpdmVyeSBzdGF0cykuIiwiaW5w
-dXRTY2hlbWEiOnsidHlwZSI6Im9iamVjdCIsInByb3BlcnRpZXMiOnsiYWN0aW9uIjp7InR5cGUiOiJzdHJpbmciLCJlbnVtIjpb
-InNldHVwIiwidGVzdCIsInJlc2V0Iiwic3RhdHVzIl0sImRlc2NyaXB0aW9uIjoiQWN0aW9uIHRvIHBlcmZvcm0uIERlZmF1bHQ6
-IHN0YXR1cyJ9LCJ1cmwiOnsidHlwZSI6InN0cmluZyIsImRlc2NyaXB0aW9uIjoiQmFzZSBnYXRld2F5IFVSTCwgZS5nLiBodHRw
-Oi8vMTI3LjAuMC4xOjE4Nzg5IChzZXR1cCBhY3Rpb24pLiBIb21lQ2xhdyBhcHBlbmRzIC9ob29rcy93YWtlIGF1dG9tYXRpY2Fs
-bHkg4oCUIGRvIE5PVCBpbmNsdWRlIHRoZSBwYXRoLiJ9LCJ0b2tlbiI6eyJ0eXBlIjoic3RyaW5nIiwiZGVzY3JpcHRpb24iOiJC
-ZWFyZXIgdG9rZW4gZm9yIHdlYmhvb2sgYXV0aGVudGljYXRpb24gKHNldHVwIGFjdGlvbikifSwiZW5hYmxlZCI6eyJ0eXBlIjoi
-Ym9vbGVhbiIsImRlc2NyaXB0aW9uIjoiRW5hYmxlIG9yIGRpc2FibGUgdGhlIHdlYmhvb2sgKHNldHVwIGFjdGlvbikuIERlZmF1
-bHQ6IHRydWUifX19fSx7Im5hbWUiOiJob21la2l0X2V2ZW50cyIsImRlc2NyaXB0aW9uIjoiR2V0IHJlY2VudCBIb21lS2l0IGV2
-ZW50cyDigJQgY2hhcmFjdGVyaXN0aWMgY2hhbmdlcywgc2NlbmUgdHJpZ2dlcnMsIGFuZCBhY2Nlc3NvcnkgY29udHJvbCBhY3Rp
-b25zLiBVc2UgdG8gdW5kZXJzdGFuZCB3aGF0IGhhcHBlbmVkIHJlY2VudGx5IGluIHRoZSBob21lLiIsImlucHV0U2NoZW1hIjp7
-InR5cGUiOiJvYmplY3QiLCJwcm9wZXJ0aWVzIjp7ImxpbWl0Ijp7InR5cGUiOiJudW1iZXIiLCJkZXNjcmlwdGlvbiI6Ik1heGlt
-dW0gbnVtYmVyIG9mIGV2ZW50cyB0byByZXR1cm4gKGRlZmF1bHQ6IDUwKSJ9LCJzaW5jZSI6eyJ0eXBlIjoic3RyaW5nIiwiZGVz
-Y3JpcHRpb24iOiJJU08gODYwMSB0aW1lc3RhbXAg4oCUIG9ubHkgcmV0dXJuIGV2ZW50cyBhZnRlciB0aGlzIHRpbWUifSwidHlw
-ZSI6eyJ0eXBlIjoic3RyaW5nIiwiZW51bSI6WyJjaGFyYWN0ZXJpc3RpY19jaGFuZ2UiLCJob21lc191cGRhdGVkIiwic2NlbmVf
-dHJpZ2dlcmVkIiwiYWNjZXNzb3J5X2NvbnRyb2xsZWQiXSwiZGVzY3JpcHRpb24iOiJGaWx0ZXIgYnkgZXZlbnQgdHlwZSJ9fX19
-XQ==
-"""
-        return Data(base64Encoded: encoded.filter { !$0.isWhitespace }) ?? Data("[]".utf8)
-    }()
+    // Generated from lib/schemas.js; reviewed as plain JSON.
+    // Check/regenerate: node scripts/check-mcp-schema-parity.mjs [--write]
+    static let allToolsJSON: Data = Data(#"""
+    [
+      {
+        "name": "homekit_status",
+        "description": "Check HomeClaw status — shows connectivity, home count, and accessory count.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "homekit_accessories",
+        "description": "Manage HomeKit accessories: list all, get details, search by name/room/category, or control (set characteristic values). Returns only accessories visible under the current filter configuration. Defaults to configured home if home_id not specified.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "list",
+                "get",
+                "search",
+                "control"
+              ],
+              "description": "Action to perform. Default: list"
+            },
+            "home_id": {
+              "type": "string",
+              "description": "Filter by home UUID. Defaults to configured home if not specified."
+            },
+            "room": {
+              "type": "string",
+              "description": "Filter by room name (list action only)"
+            },
+            "accessory_id": {
+              "type": "string",
+              "description": "Accessory UUID or name (get/control actions)"
+            },
+            "query": {
+              "type": "string",
+              "description": "Search query — matches name, room, category (search action)"
+            },
+            "category": {
+              "type": "string",
+              "description": "Filter by category e.g. lightbulb, lock, thermostat (search action)"
+            },
+            "characteristic": {
+              "type": "string",
+              "description": "Characteristic to set e.g. power, brightness, target_temperature (control action)"
+            },
+            "value": {
+              "type": "string",
+              "description": "Value to set e.g. true, 75, locked (control action)"
+            },
+            "service_type": {
+              "type": "string",
+              "description": "Service TYPE UUID to narrow the target when the characteristic exists on multiple services (control action). Note: every channel of a multi-gang switch shares one service type, so this alone cannot pick a channel — use service_name or service_index for that."
+            },
+            "service_name": {
+              "type": "string",
+              "description": "Name or unique UUID of the specific service to write to (control action). This is how you pick one channel of a multi-gang switch. Both values are listed in the ambiguity error and in the get action output."
+            },
+            "service_id": {
+              "type": "string",
+              "description": "Unique UUID of the specific service to write to (control action). Listed as `service_id` in the ambiguity error and as `id` per service in the get action output. Use this when two services share a name."
+            },
+            "service_index": {
+              "type": "number",
+              "description": "Channel number (ServiceLabelIndex) of the specific service to write to, e.g. 1 for the first gang (control action). Listed as `index` in the get action output when the accessory reports one."
+            },
+            "verify": {
+              "type": "boolean",
+              "description": "Default true (control action). After writing, the value is read back and a write the device did not apply is returned as an error rather than a success. Set false only for accessories whose readback is unreliable; the response then carries verification_skipped: \"disabled\"."
+            },
+            "no_refresh": {
+              "type": "boolean",
+              "description": "Skip live characteristic reads and return last-known + static values only (get action). Much faster and avoids per-call slowdowns when reading many accessories in sequence; safe for static metadata like serial number, model, and firmware."
+            }
+          }
+        }
+      },
+      {
+        "name": "homekit_rooms",
+        "description": "List HomeKit rooms and their accessories. Defaults to configured home if home_id not specified.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "home_id": {
+              "type": "string",
+              "description": "Filter by home UUID. Defaults to configured home if not specified."
+            }
+          }
+        }
+      },
+      {
+        "name": "homekit_scenes",
+        "description": "List, get details of, or trigger HomeKit scenes (action sets). Defaults to configured home if home_id not specified.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "list",
+                "get",
+                "trigger"
+              ],
+              "description": "Action to perform. Default: list. \"get\" returns all actions in the scene."
+            },
+            "home_id": {
+              "type": "string",
+              "description": "Filter by home UUID (list/get action). Defaults to configured home if not specified."
+            },
+            "scene_id": {
+              "type": "string",
+              "description": "Scene UUID or name (get/trigger action)"
+            }
+          }
+        }
+      },
+      {
+        "name": "homekit_device_map",
+        "description": "Get an LLM-optimized device map organized by home/zone/room with semantic types, auto-generated aliases, controllable characteristics, and state summaries. Use this to understand the full device landscape before controlling devices.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "home_id": {
+              "type": "string",
+              "description": "Filter by home UUID. Defaults to configured home if not specified."
+            }
+          }
+        }
+      },
+      {
+        "name": "homekit_manage",
+        "description": "Manage HomeKit structure: rename accessories, assign rooms (with UUID support for duplicate names), create/rename/remove rooms, remove accessories, create/remove zones, and manage zone membership. All actions support dry_run for safe previews.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "rename",
+                "remove_accessory",
+                "assign_rooms",
+                "create_room",
+                "rename_room",
+                "remove_room",
+                "create_zone",
+                "remove_zone",
+                "add_room_to_zone",
+                "remove_room_from_zone"
+              ],
+              "description": "Management action to perform"
+            },
+            "home_id": {
+              "type": "string",
+              "description": "Home UUID or name. Defaults to configured home."
+            },
+            "id": {
+              "type": "string",
+              "description": "Accessory, room, or zone name/UUID (action-dependent)"
+            },
+            "new_name": {
+              "type": "string",
+              "description": "New name for rename actions"
+            },
+            "name": {
+              "type": "string",
+              "description": "Name for create actions (create_room, create_zone)"
+            },
+            "room": {
+              "type": "string",
+              "description": "Room name/UUID (zone membership actions)"
+            },
+            "zone": {
+              "type": "string",
+              "description": "Zone name/UUID (zone membership actions)"
+            },
+            "assignments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "uuid": {
+                    "type": "string",
+                    "description": "Accessory UUID (preferred for duplicate names)"
+                  },
+                  "accessory": {
+                    "type": "string",
+                    "description": "Accessory name (fallback, case-insensitive)"
+                  },
+                  "room": {
+                    "type": "string",
+                    "description": "Target room name (created if missing)"
+                  }
+                },
+                "required": [
+                  "room"
+                ]
+              },
+              "description": "Array of room assignments (assign_rooms action). Each must have \"room\" plus either \"uuid\" or \"accessory\"."
+            },
+            "dry_run": {
+              "type": "boolean",
+              "description": "Preview changes without applying (default: false)"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      },
+      {
+        "name": "homekit_config",
+        "description": "View or update HomeClaw configuration. Set a default home, or configure device filtering to control which accessories are exposed.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "get",
+                "set"
+              ],
+              "description": "Action to perform. Default: get"
+            },
+            "default_home_id": {
+              "type": "string",
+              "description": "Home UUID or name to set as active home (set action). All commands operate on the active home."
+            },
+            "accessory_filter_mode": {
+              "type": "string",
+              "enum": [
+                "all",
+                "allowlist"
+              ],
+              "description": "Filter mode: \"all\" exposes every accessory, \"allowlist\" only exposes selected accessories (set action)."
+            },
+            "allowed_accessory_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of accessory UUIDs to expose when filter mode is \"allowlist\" (set action)."
+            }
+          }
+        }
+      },
+      {
+        "name": "homekit_automations",
+        "description": "Manage HomeKit automations. List existing automations, inspect their events and linked scenes, create automations triggered by any characteristic change (button presses, motion sensors, contact sensors, occupancy, etc.) or by a time of day (clock or sunrise/sunset), delete automations, or enable/disable them. For characteristic-change triggers use action=create with press_type (buttons) or characteristic+trigger_value (sensors). For time-of-day triggers use action=create_time with the `time` field (HH:MM, sunrise, sunset, or <sun-event>±N). Both create actions accept the same predicate vocabulary: weekdays, conditions, time_after, time_before, duration_seconds. Use duration_seconds to auto-revert actions after N seconds (e.g. motion-triggered lights or sunset porch lights that turn off after a delay). Use action=add_condition to append a characteristic condition (ANDed) to an existing automation in place — the trigger UUID is preserved, so button bindings and Siri references survive. List/get also surface HMTimerTrigger automations (Apple Home native time automations) and HMCalendarEvent / HMSignificantTimeEvent / HMDurationEvent details on event triggers; result rows include trigger_type (\"button\" | \"characteristic\" | \"calendar\" | \"significant_time\" | \"timer\" | \"unknown\") and, where applicable, fire_time, fire_date, and duration_seconds. Delete/enable/disable accept any trigger subtype. Note: the predicate-composition features (conditions, time_after/time_before, add_condition) are built on standard HMEventTrigger predicate composition — supported by Apple's HomeKit framework APIs but not yet surfaced in the Home app's Automations tab. They mirror the rule-editor capabilities exposed by third-party HomeKit apps like Controller for HomeKit. Rules created or modified this way execute correctly via HomeKit; use list/get to inspect them since they may not be editable from the Home app.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "list",
+                "get",
+                "create",
+                "create_time",
+                "delete",
+                "enable",
+                "disable",
+                "add_condition"
+              ],
+              "description": "Action to perform. Default: list"
+            },
+            "home_id": {
+              "type": "string",
+              "description": "Home UUID or name. Defaults to configured home."
+            },
+            "id": {
+              "type": "string",
+              "description": "Automation UUID or name (get/delete/enable/disable actions)"
+            },
+            "name": {
+              "type": "string",
+              "description": "Automation name (create / create_time actions)"
+            },
+            "accessory_id": {
+              "type": "string",
+              "description": "Trigger accessory UUID or name (create action)"
+            },
+            "time": {
+              "type": "string",
+              "description": "Time of day the automation fires (create_time action, required). Format: \"HH:MM\" for a wall-clock time (e.g. \"06:30\", \"17:45\"; both fields must be zero-padded two digits — \"6:30\" is rejected), \"sunrise\"/\"sunset\" for sun-relative events, or \"<sun-event>±N\" where N is minutes (e.g. \"sunset-30\", \"sunrise+15\"). Offsets larger than 1440 minutes (24h) are rejected. Implemented as HMCalendarEvent for HH:MM and HMSignificantTimeEvent for sunrise/sunset. All other predicate flags (weekdays, conditions, time_after, time_before, duration_seconds) compose with `time` the same way they do on the create action — `time` is the trigger event, those are the gating predicates."
+            },
+            "scene_id": {
+              "type": "string",
+              "description": "Scene UUID or name to trigger (create / create_time actions). Alternative to actions."
+            },
+            "actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "accessory": {
+                    "type": "string",
+                    "description": "Target accessory UUID (strongly preferred) or name"
+                  },
+                  "property": {
+                    "type": "string",
+                    "description": "Characteristic to set (e.g., power, brightness, color_temperature)"
+                  },
+                  "characteristic": {
+                    "type": "string",
+                    "description": "Alias for \"property\" — provide one or the other"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Target value as string (e.g., \"true\", \"50\", \"344\")"
+                  },
+                  "room": {
+                    "type": "string",
+                    "description": "Room name for disambiguation (optional)"
+                  }
+                },
+                "required": [
+                  "accessory",
+                  "value"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "property"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "characteristic"
+                    ]
+                  }
+                ]
+              },
+              "description": "Inline actions for the automation (create / create_time actions). Alternative to scene_id. Creates a scene named after the automation. Each action sets one characteristic on one accessory."
+            },
+            "press_type": {
+              "type": "number",
+              "enum": [
+                0,
+                1,
+                2
+              ],
+              "description": "Button press type: 0=single (default), 1=double, 2=long press. For button triggers only; mutually exclusive with characteristic. (create action)"
+            },
+            "characteristic": {
+              "type": "string",
+              "description": "Characteristic name to trigger on (e.g., motion_detected, contact_state, occupancy_detected, current_temperature). Alternative to press_type for non-button triggers. (create action)"
+            },
+            "trigger_value": {
+              "type": "string",
+              "description": "Value that triggers the automation (e.g., \"true\", \"false\", \"1\", \"0\"). Required when characteristic is set. Uses exact value matching. (create action)"
+            },
+            "service_index": {
+              "type": "number",
+              "description": "Button index for multi-button accessories (1 or 2). For button triggers only. (create action)"
+            },
+            "weekdays": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "enum": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              "description": "Restrict the automation to fire only on these weekdays (1=Sun, 2=Mon, ..., 7=Sat). When omitted, characteristic-trigger automations (create) fire every day; time-of-day automations (create_time) auto-fill all 7 days since iOS 15+ marks time-conditional automations without weekday gating as \"unreliable\". Setting time_after/time_before on create with no weekdays also auto-fills all 7 days and sets `weekdays_auto_filled: true` in the response. (create / create_time actions)"
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "accessory": {
+                    "type": "string",
+                    "description": "Condition accessory UUID (preferred) or name"
+                  },
+                  "property": {
+                    "type": "string",
+                    "description": "Characteristic name (e.g., contact_state, occupancy_detected, power)"
+                  },
+                  "characteristic": {
+                    "type": "string",
+                    "description": "Alias for \"property\" — provide one or the other"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "Required value as string (e.g., \"true\", \"0\", \"50\"). Uses exact match (==)."
+                  },
+                  "room": {
+                    "type": "string",
+                    "description": "Room name for accessory disambiguation when multiple accessories share a name (optional)"
+                  }
+                },
+                "required": [
+                  "accessory",
+                  "value"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "property"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "characteristic"
+                    ]
+                  }
+                ]
+              },
+              "description": "Extra characteristic predicates ANDed into the trigger predicate. The trigger fires only when the trigger event happens AND every condition holds. Example: porch motion (or sunset, on create_time) that only triggers when the front door is closed AND nobody is home. Each condition is a (characteristic == value) match against any accessory in the home. (create / create_time actions)"
+            },
+            "time_after": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Time predicates ANDed into the trigger so it only fires after the given time. Same vocabulary as the `time` field: \"HH:MM\" for a wall-clock time (zero-padded, e.g. \"07:00\") or \"<sunrise|sunset>[±N]\" where N is minutes (e.g., \"sunset-30\", \"sunrise+15\", \"sunset\"). Offsets larger than 1440 minutes are rejected. Combine with time_before for a window (e.g., time_after=[\"07:00\"] + time_before=[\"20:30\"] for \"only during the day\", or time_after=[\"sunset-30\"] + time_before=[\"sunrise+15\"] for \"between dusk and dawn\"). On create_time these are gating predicates on top of the `time` trigger event, not the trigger itself. When set without explicit weekdays, HomeClaw auto-fills all 7 days; see the weekdays field. (create / create_time actions)"
+            },
+            "time_before": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Time predicates ANDed into the trigger so it only fires before the given time. Same format and offset rules as time_after. (create / create_time actions)"
+            },
+            "duration_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400,
+              "description": "Auto-revert the trigger's actions after this many seconds (1-86400, i.e. up to 24 hours). Implemented as an HMDurationEvent attached to the trigger's endEvents — HomeKit handles the revert natively, no follow-up automation required. Common use cases: motion-triggered lights that should turn off again after a delay (e.g. `duration_seconds: 300` for a 5-minute hold), or sunset porch lights that should turn off after an hour. (create / create_time actions)"
+            },
+            "condition": {
+              "type": "object",
+              "properties": {
+                "accessory": {
+                  "type": "string",
+                  "description": "Condition accessory UUID (preferred) or name"
+                },
+                "property": {
+                  "type": "string",
+                  "description": "Characteristic name (e.g., contact_state, occupancy_detected, power)"
+                },
+                "characteristic": {
+                  "type": "string",
+                  "description": "Alias for \"property\" — provide one or the other"
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Required value as string (e.g., \"true\", \"0\", \"50\"). Uses exact match (==)."
+                },
+                "room": {
+                  "type": "string",
+                  "description": "Room name for accessory disambiguation when multiple accessories share a name (optional)"
+                }
+              },
+              "required": [
+                "accessory",
+                "value"
+              ],
+              "anyOf": [
+                {
+                  "required": [
+                    "property"
+                  ]
+                },
+                {
+                  "required": [
+                    "characteristic"
+                  ]
+                }
+              ],
+              "description": "Single characteristic condition (object — note the singular field name, distinct from the plural `conditions` array used by create / create_time) to append (ANDed) to an existing automation's trigger predicate. To add multiple conditions, call add_condition repeatedly — each call preserves the trigger UUID, so physical button bindings, Siri references, and other UUID-keyed integrations survive every modification. The read-side decoder (list/get) surfaces the new condition automatically. To replace an existing condition set, delete the automation and recreate it. (add_condition action)"
+            },
+            "dry_run": {
+              "type": "boolean",
+              "description": "Preview changes without applying (create/create_time/delete/add_condition actions)"
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      },
+      {
+        "name": "homekit_webhook",
+        "description": "Manage webhook configuration for pushing HomeKit events to OpenClaw or other services. Actions: setup (configure URL, token, and enable in one step), test (send a test event and show the HTTP response), reset (reset the circuit breaker), status (show webhook health and delivery stats).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "setup",
+                "test",
+                "reset",
+                "status"
+              ],
+              "description": "Action to perform. Default: status"
+            },
+            "url": {
+              "type": "string",
+              "description": "Base gateway URL, e.g. http://127.0.0.1:18789 (setup action). HomeClaw appends /hooks/wake automatically — do NOT include the path."
+            },
+            "token": {
+              "type": "string",
+              "description": "Bearer token for webhook authentication (setup action)"
+            },
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable or disable the webhook (setup action). Default: true"
+            }
+          }
+        }
+      },
+      {
+        "name": "homekit_events",
+        "description": "Get recent HomeKit events — characteristic changes, scene triggers, and accessory control actions. Use to understand what happened recently in the home.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of events to return (default: 50)"
+            },
+            "since": {
+              "type": "string",
+              "description": "ISO 8601 timestamp — only return events after this time"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "characteristic_change",
+                "homes_updated",
+                "scene_triggered",
+                "accessory_controlled"
+              ],
+              "description": "Filter by event type"
+            }
+          }
+        }
+      }
+    ]
+    """#.utf8)
 
     static var allToolNames: [String] {
         ((try? JSONSerialization.jsonObject(with: allToolsJSON) as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }

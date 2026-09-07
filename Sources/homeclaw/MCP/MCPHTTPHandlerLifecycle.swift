@@ -38,6 +38,12 @@ final class MCPHTTPResponseOrder: @unchecked Sendable {
                 }
                 nextToWrite += 1
             }
+            // Advancing the frontier makes the next unfinished response eligible.
+            // It may already be suspended in waitTurn; wake it, not just tickets
+            // marked completed by cancellation or out-of-order completion.
+            if let continuation = waiters.removeValue(forKey: nextToWrite) {
+                resumptions.append(continuation)
+            }
         }
         lock.unlock()
         resumptions.forEach { $0.resume() }
