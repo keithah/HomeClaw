@@ -15,6 +15,27 @@ final class StreamableHTTPTransportTests: XCTestCase {
         XCTAssertEqual(response.statusCode, 200); XCTAssertNotNil(response.header("Mcp-Session-Id")); XCTAssertTrue(response.bodyString?.contains("protocolVersion") == true)
     }
 
+    func testEmptyAndMalformedContentTypesAreRejectedWithoutAllocatingSessions() async {
+        let server = MCPServer(homeKitReady: false)
+        let invalidTypes: [String?] = [nil, "", " ", ";", ";application/json", "; charset=utf-8", "text/plain"]
+        for contentType in invalidTypes {
+            var requestHeaders = headers
+            requestHeaders["Content-Type"] = contentType
+            let response = await send(server, HTTPRequest(method: "POST", headers: requestHeaders, body: Data(json.utf8)))
+            XCTAssertEqual(response.statusCode, 415, "Content-Type: \(String(describing: contentType))")
+            XCTAssertNil(response.header("Mcp-Session-Id"))
+        }
+        let count = await server.sessionStore.count
+        XCTAssertEqual(count, 0)
+    }
+
+    func testJSONContentTypeAllowsCaseAndParameters() async {
+        for contentType in ["Application/JSON", " application/json ; charset=utf-8"] {
+            let response = await send(MCPServer(homeKitReady: false), HTTPRequest(method: "POST", headers: ["Content-Type": contentType, "Accept": "application/json"], body: Data(json.utf8)))
+            XCTAssertEqual(response.statusCode, 200)
+        }
+    }
+
     func testInvalidInitializeDoesNotAllocateSession() async throws {
         let server = MCPServer()
         let badJSON = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}"

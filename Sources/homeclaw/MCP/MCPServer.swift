@@ -323,6 +323,9 @@ private extension MCPServer {
     }
 
     private func specificity(of mediaType: String) -> Int { mediaType == "*/*" ? 0 : 1 }
-    private func contentTypeIsJSON(_ value: String?) -> Bool { value?.split(separator: ";", maxSplits: 1)[0].trimmingCharacters(in: .whitespaces).caseInsensitiveCompare("application/json") == .orderedSame }
+    private func contentTypeIsJSON(_ value: String?) -> Bool {
+        guard let value, let mediaType = value.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first else { return false }
+        return mediaType.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare("application/json") == .orderedSame
+    }
     private func isJSONRPC(_ json: [String: Any]) -> Bool { json["jsonrpc"] as? String == "2.0" && json["method"] is String }
 }
