@@ -101,14 +101,16 @@ final class MCPHTTPHandlerLifecycle {
         retireSessionIfUnused(ownership.sessionID)
     }
 
-    func cancelAll() -> [String] {
-        let sessions = activeSessionIDs
+    /// Only streams owned by this channel may be retired on disconnect. A POST
+    /// borrows a session ID; it does not own that session's stream.
+    func cancelAll() -> Set<SSEStreamOwnership> {
+        let ownerships = activeSSEOwnerships
         activeTaskIDs.removeAll()
         activeSessionIDs.removeAll()
         activeSSESessionIDs.removeAll()
         activeSSEOwnerships.removeAll()
         taskSessions.removeAll()
-        return sessions.sorted()
+        return ownerships
     }
 
     private func retireSessionIfUnused(_ sessionID: String?) {

@@ -98,15 +98,17 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         XCTAssertTrue(lifecycle.activeSSESessionIDs.contains("stream"))
     }
 
-    func testHandlerLifecycleChannelCloseReturnsAllSSESessions() {
+    func testHandlerLifecycleChannelCloseReturnsOnlyOwnedSSEStreams() {
         let lifecycle = MCPHTTPHandlerLifecycle()
         let taskID = UUID()
+        let ownership = SSEStreamOwnership(sessionID: "stream", token: UUID())
         lifecycle.begin(taskID: taskID, sessionID: "stream")
-        lifecycle.markSSEActive(SSEStreamOwnership(sessionID: "stream", token: UUID()))
+        lifecycle.markSSEActive(ownership)
+        lifecycle.begin(taskID: UUID(), sessionID: "borrowed-post-session")
 
         let cleaned = lifecycle.cancelAll()
 
-        XCTAssertEqual(cleaned, ["stream"])
+        XCTAssertEqual(cleaned, [ownership])
         XCTAssertTrue(lifecycle.activeTaskIDs.isEmpty)
         XCTAssertTrue(lifecycle.activeSessionIDs.isEmpty)
         XCTAssertTrue(lifecycle.activeSSESessionIDs.isEmpty)

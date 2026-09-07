@@ -241,6 +241,8 @@ targets:
       - path: Tests/HomeClawTests
     dependencies:
       - target: HomeClaw
+      - package: swift-nio
+        product: NIOEmbedded
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shahine.homeclaw.tests

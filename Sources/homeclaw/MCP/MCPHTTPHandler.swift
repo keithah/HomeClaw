@@ -57,19 +57,34 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                     do { try HTTPMCPRequestPolicy.validate(host: host, origin: request.header("Origin"), bindHost: await server.bindHost); response = await server.handleHTTPRequest(request) }
                     catch { response = .error(statusCode: 400, "Invalid request policy") }
                 } else { response = .error(statusCode: 400, "Invalid request policy") }
-                await Self.cleanupCancelledRequestIfNeeded(sseOwnership: response.sseOwnership, isCancelled: Task.isCancelled) { await server.cleanupSSE(for: $0) }
-                guard !Task.isCancelled, channel.isActive else { return }
-                if let ownership = response.sseOwnership { channel.eventLoop.execute { [weak self] in self?.lifecycle.markSSEActive(ownership) } }
+                guard !Task.isCancelled, channel.isActive else {
+                    await Self.cleanupCancelledRequestIfNeeded(sseOwnership: response.sseOwnership, isCancelled: true) { await server.cleanupSSE(for: $0) }
+                    return
+                }
+                if let ownership = response.sseOwnership {
+                    channel.eventLoop.execute { [weak self] in
+                        // channelInactive may have run before this queued handoff.
+                        guard channel.isActive else { return }
+                        self?.lifecycle.markSSEActive(ownership)
+                    }
+                }
                 await Self.writeOrdered(response, version: state.head.version, channel: channel, order: responseOrder, ticket: responseTicket)
-                if let ownership = response.sseOwnership { channel.eventLoop.execute { [weak self] in self?.lifecycle.finishSSE(ownership) } }
+                if let ownership = response.sseOwnership {
+                    // The response task owns this token even before event-loop
+                    // registration. Always retire it on exit: cancellation can
+                    // race the guard above or occur while waiting for FIFO writes.
+                    // Token matching leaves a newer connection's stream intact.
+                    await server.cleanupSSE(for: ownership)
+                    channel.eventLoop.execute { [weak self] in self?.lifecycle.finishSSE(ownership) }
+                }
             }
             activeTasks[taskID] = task
         }
     }
 
     func channelInactive(context: ChannelHandlerContext) {
-        activeTasks.values.forEach { $0.cancel() }; activeTasks.removeAll(); responseOrder.cancelAll(); let sessions = lifecycle.cancelAll(); requestState = nil; rejectedBody = false
-        Task { await server.cleanupSSE(for: sessions) }
+        activeTasks.values.forEach { $0.cancel() }; activeTasks.removeAll(); responseOrder.cancelAll(); let ownerships = lifecycle.cancelAll(); requestState = nil; rejectedBody = false
+        Task { for ownership in ownerships { await server.cleanupSSE(for: ownership) } }
     }
     static func cleanupCancelledRequestIfNeeded(sseOwnership: SSEStreamOwnership?, isCancelled: Bool, cleanup: @escaping @Sendable (SSEStreamOwnership) async -> Void) async { guard isCancelled, let sseOwnership else { return }; await cleanup(sseOwnership) }
     static func normalizedHeaders(from headers: HTTPHeaders) -> [String: String] {

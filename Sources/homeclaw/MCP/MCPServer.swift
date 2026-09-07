@@ -81,6 +81,11 @@ actor MCPServer {
         NotificationCenter.default.post(name: .mcpListenerStatusDidChange, object: nil, userInfo: ["listenerReady": false, "homeKitReady": homeKitReady])
         if let channel { try? await channel.close() }; if let group { try? await group.shutdownGracefully() }
     }
+    #if DEBUG
+    /// Read-only ownership snapshot for channel lifecycle regressions.
+    var testSSEOwnerships: Set<SSEStreamOwnership> { Set(sseContinuations.values.map(\.ownership)) }
+    #endif
+
     func cleanupSSE(for sessionIDs: [String]) { sessionIDs.forEach { sseContinuations.removeValue(forKey: $0)?.continuation.finish() } }
     func cleanupSSE(for ownership: SSEStreamOwnership) { guard sseContinuations[ownership.sessionID]?.ownership == ownership else { return }; sseContinuations.removeValue(forKey: ownership.sessionID)?.continuation.finish() }
     func cleanupSSE(for sessionID: String) { cleanupSSE(for: [sessionID]) }
