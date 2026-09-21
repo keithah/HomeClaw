@@ -585,8 +585,9 @@ enum ToolHandlers {
                     case "list": return try await hk.listAccessories(homeID: string(args, "home_id"), room: string(args, "room"))
                     case "get":
                         guard let id = string(args, "accessory_id") else { throw HomeKitManager.ControlError.invalidArgument("accessory_id is required") }
-                        guard let value = try await hk.getAccessory(id: id, homeID: string(args, "home_id"), refresh: !bool(args, "no_refresh")) else { throw HomeKitManager.ControlError.accessoryNotFound(id) }
-                        return value
+                        let noRefresh = bool(args, "no_refresh")
+                        guard let value = try await hk.getAccessory(id: id, homeID: string(args, "home_id"), refresh: !noRefresh) else { throw HomeKitManager.ControlError.accessoryNotFound(id) }
+                        return try freshAccessory(value, noRefresh: noRefresh)
                     case "search":
                         guard let query = string(args, "query") else { throw HomeKitManager.ControlError.invalidArgument("query is required") }
                         return await hk.searchAccessories(query: query, category: string(args, "category"), homeID: string(args, "home_id"))
@@ -646,6 +647,19 @@ enum ToolHandlers {
         _ = tool
         return true
     }
+    struct FreshnessViolation: LocalizedError { let message: String; var errorDescription: String? { message } }
+
+    /// Enforces the get_accessory freshness contract, as `lib/freshness.js` does
+    /// for stdio: a failed live refresh must surface as a tool error, never as a
+    /// successful result carrying possibly last-known values, unless the caller
+    /// asked for last-known values with `no_refresh: true`.
+    static func freshAccessory(_ detail: [String: Any], noRefresh: Bool) throws -> [String: Any] {
+        if let message = AccessoryFreshnessContract.violation(in: detail, allowStale: noRefresh) {
+            throw FreshnessViolation(message: message)
+        }
+        return detail
+    }
+
     private static func string(_ args: [String: Any], _ key: String) -> String? { args[key] as? String }
     private static func int(_ args: [String: Any], _ key: String) -> Int? {
         if let value = args[key] as? Int { return value }

@@ -225,6 +225,49 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         XCTAssertTrue(policy.advertisedTools(from: drifted).isEmpty)
     }
 
+    // MARK: get_accessory freshness contract (parity with lib/freshness.js)
+
+    private static var freshRead: [String: Any] { ["succeeded": true, "observed_at": "2026-09-21T10:00:00.123Z"] }
+    private static func detail(refreshed: Bool, attempted: Int, succeeded: Int, reachable: Bool = true, reads: [[String: Any]]? = nil) -> [String: Any] {
+        let characteristics = (reads ?? Array(repeating: freshRead, count: attempted)).map { ["type": "power", "read": $0] }
+        return ["name": "Lamp", "reachable": reachable, "refreshed": refreshed, "read_attempted": attempted, "read_succeeded": succeeded,
+                "services": [["name": "Lamp", "characteristics": characteristics]]]
+    }
+
+    func testFreshAccessoryPassesFullyRefreshedPayload() throws {
+        let payload = Self.detail(refreshed: true, attempted: 2, succeeded: 2)
+        XCTAssertEqual(try ToolHandlers.freshAccessory(payload, noRefresh: false)["name"] as? String, "Lamp")
+    }
+
+    func testPartialRefreshBecomesToolError() {
+        let payload = Self.detail(refreshed: false, attempted: 3, succeeded: 1)
+        XCTAssertThrowsError(try ToolHandlers.freshAccessory(payload, noRefresh: false)) { error in
+            XCTAssertEqual(error.localizedDescription, "HomeClaw freshness contract violation: live refresh failed (1 of 3 characteristic reads succeeded); values may be last-known. Pass no_refresh: true to read last-known values")
+        }
+    }
+
+    func testUnreachableAccessoryBecomesToolError() {
+        let payload = Self.detail(refreshed: false, attempted: 2, succeeded: 0, reachable: false)
+        XCTAssertThrowsError(try ToolHandlers.freshAccessory(payload, noRefresh: false)) { error in
+            XCTAssertEqual(error.localizedDescription, "HomeClaw freshness contract violation: live refresh failed (accessory is not reachable); values may be last-known. Pass no_refresh: true to read last-known values")
+        }
+    }
+
+    func testNoRefreshAcceptsOnlyExplicitLastKnownPayload() throws {
+        let stale = Self.detail(refreshed: false, attempted: 0, succeeded: 0)
+        XCTAssertNoThrow(try ToolHandlers.freshAccessory(stale, noRefresh: true))
+        // A no-refresh request answered with fresh-read metadata is a contract violation too.
+        XCTAssertThrowsError(try ToolHandlers.freshAccessory(Self.detail(refreshed: true, attempted: 1, succeeded: 1), noRefresh: true))
+    }
+
+    func testFreshnessRejectsMalformedAttestation() {
+        XCTAssertThrowsError(try ToolHandlers.freshAccessory(["refreshed": true], noRefresh: false))
+        let inconsistent = Self.detail(refreshed: true, attempted: 2, succeeded: 2, reads: [Self.freshRead])
+        XCTAssertThrowsError(try ToolHandlers.freshAccessory(inconsistent, noRefresh: false))
+        let badRead = Self.detail(refreshed: true, attempted: 1, succeeded: 1, reads: [["succeeded": true]])
+        XCTAssertThrowsError(try ToolHandlers.freshAccessory(badRead, noRefresh: false))
+    }
+
     // MARK: 5. HomeKit readiness
 
     func testHomeKitToolsFailFastWhenHomeKitNotReady() async throws {
