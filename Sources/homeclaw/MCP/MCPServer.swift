@@ -64,12 +64,13 @@ actor MCPServer {
     private var lifecycleGeneration: UInt64 = 0
     private var isStarting = false
     private let toolPolicy: HTTPToolPolicy
-    private var activeToolCalls = 0
+    private let toolAdmission: ToolDispatchAdmission
     private var connectionTracker: MCPHTTPConnectionTracker?
 
     init(configuration: HTTPMCPConfiguration = .init(port: AppConfig.mcpPort, bindHost: AppConfig.mcpBindHost), homeKitReady: Bool = false, sessionStore: StreamableHTTPSessionStore? = nil, toolRegistry: MCPToolRegistry = HomeClawMCPToolRegistry.shared, toolPolicy: HTTPToolPolicy = .readOnly, dispatchTimeout: Duration = .seconds(120)) {
         self.configuration = configuration; self.homeKitReady = homeKitReady; self.toolRegistry = toolRegistry; self.toolPolicy = toolPolicy; self.dispatchTimeout = dispatchTimeout
         self.sessionStore = sessionStore ?? .init(ttl: configuration.sessionTTL, maxSessions: configuration.maxSessions)
+        self.toolAdmission = ToolDispatchAdmission(limit: configuration.maxConcurrentToolCalls)
     }
     var endpoint: String { AppConfig.mcpEndpoint }; var bindHost: String { configuration.bindHost }
     private var homeKitReadySequence: UInt64 = 0
@@ -87,6 +88,7 @@ actor MCPServer {
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         let tracker = MCPHTTPConnectionTracker(maxConnections: configuration.maxConnections)
         let idleTimeout = configuration.idleTimeout
+        let maxInflight = configuration.maxInflightPerChannel
         do {
             let channel = try await ServerBootstrap(group: group).serverChannelOption(.backlog, value: 256).serverChannelOption(.socketOption(.so_reuseaddr), value: 1).childChannelInitializer { channel in
                 // Over the connection cap (or shutting down): a failed initializer
@@ -94,7 +96,7 @@ actor MCPServer {
                 guard tracker.admit(channel) else { return channel.eventLoop.makeFailedFuture(MCPConnectionLimitError()) }
                 return channel.pipeline.addHandler(IdleStateHandler(readTimeout: idleTimeout))
                     .flatMap { channel.pipeline.configureHTTPServerPipeline() }
-                    .flatMap { channel.pipeline.addHandler(MCPHTTPHandler(server: self, tracker: tracker)) }
+                    .flatMap { channel.pipeline.addHandler(MCPHTTPHandler(server: self, tracker: tracker, maxInflight: maxInflight)) }
             }.bind(host: configuration.bindHost, port: configuration.port).get()
             guard generation == lifecycleGeneration else {
                 try? await channel.close()
@@ -110,7 +112,7 @@ actor MCPServer {
         lifecycleGeneration &+= 1
         let channel = self.channel; let group = self.group; let tracker = connectionTracker
         self.channel = nil; self.group = nil; connectionTracker = nil; listenerReady = false
-        expiryTask?.cancel(); expiryTask = nil; cleanupSSE(for: Array(sseContinuations.keys)); _ = await sessionStore.removeAll()
+        expiryTask?.cancel(); expiryTask = nil; _ = await sessionStore.removeAll(); cleanupSSE(for: Array(sseContinuations.keys))
         NotificationCenter.default.post(name: .mcpListenerStatusDidChange, object: nil, userInfo: ["listenerReady": false, "homeKitReady": homeKitReady])
         if let channel { try? await channel.close() }
         // Drain before shutting the loop down: in-flight request tasks hop back
@@ -148,9 +150,20 @@ actor MCPServer {
         guard let id = request.header("Mcp-Session-Id") else { return protocolError(status: 400, code: -32600, message: "Missing Mcp-Session-Id header") }
         guard let session = await sessionStore.validateAndTouch(id) else { return protocolError(status: 404, code: -32600, message: "Session not found or expired") }
         if let versionError = protocolVersionError(request, session: session) { return versionError }
-        if method == "DELETE" { cleanupSSE(for: id); _ = await sessionStore.remove(id); return HTTPResponse(statusCode: 200) }
+        // Remove from the store before finishing the stream. A concurrent GET
+        // re-checks the store after registering (below), so either it sees the
+        // session gone and retires its own stream, or this cleanup runs after
+        // its registration and retires it.
+        if method == "DELETE" { _ = await sessionStore.remove(id); cleanupSSE(for: id); return HTTPResponse(statusCode: 200) }
         var continuation: AsyncStream<Data>.Continuation!; let stream = AsyncStream<Data> { continuation = $0 }; continuation.yield(Data(": connected\n\n".utf8)); let ownership = SSEStreamOwnership(sessionID: id, token: UUID())
         sseContinuations.removeValue(forKey: id)?.continuation.finish(); sseContinuations[id] = (ownership, continuation)
+        // The session may have been deleted, expired or evicted while this GET
+        // was suspended after validation. Every removal path removes from the
+        // store before cleaning streams, so re-checking here closes the gap.
+        guard await sessionStore.get(id) != nil else {
+            cleanupSSE(for: ownership)
+            return protocolError(status: 404, code: -32600, message: "Session not found or expired")
+        }
         return HTTPResponse(statusCode: 200, headers: ["Content-Type": "text/event-stream", "Cache-Control": "no-cache"], stream: stream, sseOwnership: ownership)
     }
 
@@ -225,19 +238,54 @@ actor MCPServer {
         // HomeKit handlers park on waitForReady() until homes load; fail fast
         // instead of accumulating tasks that may never resume.
         if rule.requiresHomeKit && !homeKitReady { return Self.jsonRPCErrorData(id: id, code: -32002, message: "HomeKit not ready") }
-        guard activeToolCalls < configuration.maxConcurrentToolCalls else { return Self.jsonRPCErrorData(id: id, code: -32003, message: "Server busy: too many concurrent tool calls") }
-        activeToolCalls += 1
-        defer { activeToolCalls -= 1 }
+        // The slot is held by the dispatched operation itself, not by this
+        // request: a call that times out or whose client disconnects keeps its
+        // slot until the underlying work really ends, so abandoned work cannot
+        // pile up beyond the cap.
+        guard let slot = toolAdmission.acquire() else { return Self.jsonRPCErrorData(id: id, code: -32003, message: "Server busy: too many concurrent tool calls") }
         let args = (try? JSONSerialization.data(withJSONObject: arguments)) ?? Data("{}".utf8)
-        let data = await dispatchWithTimeout(name: name, arguments: args)
+        let data = await dispatchWithTimeout(name: name, arguments: args, slot: slot)
         let isError = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["error"] != nil
         return jsonData(["jsonrpc":"2.0", "id":id, "result":["content":[["type":"text", "text":String(decoding:data, as: UTF8.self)]], "isError":isError]])
     }
-    private func dispatchWithTimeout(name: String, arguments: Data) async -> Data {
-        await DispatchTimeoutRace.run(timeout: dispatchTimeout, timeoutValue: Data("{\"error\":\"Tool dispatch timed out\"}".utf8), cancelledValue: Data("{\"error\":\"Tool dispatch cancelled\"}".utf8)) {
-            await self.toolRegistry.call(name: name, arguments: arguments)
+    private func dispatchWithTimeout(name: String, arguments: Data, slot: ToolDispatchAdmission.Slot) async -> Data {
+        let registry = toolRegistry
+        return await DispatchTimeoutRace.run(timeout: dispatchTimeout, timeoutValue: Data("{\"error\":\"Tool dispatch timed out\"}".utf8), cancelledValue: Data("{\"error\":\"Tool dispatch cancelled\"}".utf8)) {
+            // Only this closure retains `slot`; it is released when the closure
+            // is (after the work task finishes, or at once if it never started).
+            withExtendedLifetime(slot) {}
+            return await registry.call(name: name, arguments: arguments)
         }
     }
+}
+
+/// Server-wide cap on tool operations actually running. A `Slot` releases its
+/// capacity when it is deallocated, so it lives exactly as long as whatever
+/// retains it (the dispatched operation's closure).
+final class ToolDispatchAdmission: @unchecked Sendable {
+    final class Slot: @unchecked Sendable {
+        private let admission: ToolDispatchAdmission
+        fileprivate init(_ admission: ToolDispatchAdmission) { self.admission = admission }
+        deinit { admission.release() }
+    }
+
+    private let lock = NSLock()
+    private let limit: Int
+    private var active = 0
+
+    init(limit: Int) { self.limit = limit }
+
+    var activeCount: Int { lock.lock(); defer { lock.unlock() }; return active }
+
+    func acquire() -> Slot? {
+        lock.lock()
+        guard active < limit else { lock.unlock(); return nil }
+        active += 1
+        lock.unlock()
+        return Slot(self)
+    }
+
+    fileprivate func release() { lock.lock(); active -= 1; lock.unlock() }
 }
 
 /// Races an operation against a timeout without waiting on the loser, and

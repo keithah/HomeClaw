@@ -8,11 +8,13 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     private struct RequestState: Sendable { var head: HTTPRequestHead; var bodyBuffer: ByteBuffer; let responseTicket: Int }
     private var requestState: RequestState?; private var rejectedBody = false
     private var activeTasks: [UUID: Task<Void, Never>] = [:]
-    private let maxInflight = HTTPMCPConfiguration.defaultMaxInflightPerChannel
+    private let maxInflight: Int
     private let lifecycle = MCPHTTPHandlerLifecycle()
     private let responseOrder = MCPHTTPResponseOrder()
     private let tracker: MCPHTTPConnectionTracker
-    init(server: MCPServer, tracker: MCPHTTPConnectionTracker = MCPHTTPConnectionTracker()) { self.server = server; self.tracker = tracker }
+    init(server: MCPServer, tracker: MCPHTTPConnectionTracker = MCPHTTPConnectionTracker(), maxInflight: Int = HTTPMCPConfiguration.defaultMaxInflightPerChannel) {
+        self.server = server; self.tracker = tracker; self.maxInflight = maxInflight
+    }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         switch unwrapInboundIn(data) {
@@ -164,9 +166,11 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     }
     private static func writeParts(_ response: HTTPResponse, version: HTTPVersion, channel: Channel) {
         var head = HTTPResponseHead(version: version, status: HTTPResponseStatus(statusCode: response.statusCode))
-        // Add Content-Length for fixed-size non-stream responses (HTTP/1.1 framing)
-        if let body = response.bodyData, response.stream == nil {
-            head.headers.add(name: "Content-Length", value: "\(body.count)")
+        // Fixed-size responses always carry Content-Length, 0 for an empty body
+        // (202 notification acks, DELETE), so the encoder never falls back to
+        // chunked framing for a response that has no body.
+        if response.stream == nil {
+            head.headers.add(name: "Content-Length", value: "\(response.bodyData?.count ?? 0)")
         }
         for (name, value) in response.headers { head.headers.add(name: name, value: value) }
         channel.write(wrapOutbound(.head(head)), promise: nil)
