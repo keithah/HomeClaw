@@ -381,6 +381,20 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         _ = try await busy.finish(acceptAlreadyClosed: true)
     }
 
+    func testStalledPartialRequestIsClosedOnIdle() async throws {
+        let server = MCPServer(homeKitReady: true, toolRegistry: GateRegistry())
+        let stalled = await NIOAsyncTestingChannel(handler: MCPHTTPHandler(server: server))
+        try await stalled.connect(to: SocketAddress(ipAddress: "127.0.0.1", port: 9090)).get()
+        // Headers promising a body, a fragment of it, then nothing.
+        let head = HTTPRequestHead(version: .http1_1, method: .POST, uri: "/mcp", headers: HTTPHeaders([
+            ("Host", "127.0.0.1"), ("Content-Type", "application/json"), ("Accept", "application/json"), ("Content-Length", "500")]))
+        try await stalled.writeInbound(HTTPServerRequestPart.head(head))
+        try await stalled.writeInbound(HTTPServerRequestPart.body(ByteBuffer(string: #"{"jsonrpc":"2.0","#)))
+        try await stalled.eventLoop.submit { stalled.pipeline.fireUserInboundEventTriggered(IdleStateHandler.IdleStateEvent.read) }.get()
+        try await stalled.closeFuture.get()
+        XCTAssertFalse(stalled.isActive, "A stalled partial request must not pin the connection")
+    }
+
     func testTrackerShutdownClosesConnectionsAndDrainsInflightTasks() async throws {
         let registry = GateRegistry()
         let server = MCPServer(homeKitReady: true, toolRegistry: registry)
@@ -438,6 +452,12 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         // Idle: with nothing in flight both admitted connections time out.
         XCTAssertTrue(first.waitForPeerClose(timeout: 3), "Idle connection must be closed")
         XCTAssertTrue(second.waitForPeerClose(timeout: 3), "Idle connection must be closed")
+
+        // Stalled partial request (headers plus part of a body): idled out too,
+        // so such sockets cannot pin the connection cap.
+        let slow = try RawSocket(port: port)
+        slow.send("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:\(port)\r\nContent-Type: application/json\r\nAccept: application/json\r\nContent-Length: 500\r\n\r\n{\"jsonrpc\":")
+        XCTAssertTrue(slow.waitForPeerClose(timeout: 3), "Stalled partial request must be idled out")
 
         // Stop while a tool call is parked: must return promptly (drain, then shut down).
         let created = await listener.sessionStore.create(protocolVersion: "2025-11-25")

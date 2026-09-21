@@ -91,12 +91,15 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         }
     }
 
-    /// Closes a keep-alive connection that has been idle for the configured
-    /// timeout. Connections with an in-flight request or a live SSE stream (whose
-    /// writer task stays in `activeTasks`) are left open.
+    /// Closes a connection that has read nothing for the configured timeout.
+    /// That includes a partial request (headers, or part of a body, then a
+    /// stall): it has no task yet, and leaving it open would let a handful of
+    /// stalled sockets hold the connection cap. Connections with an executing
+    /// request or a live SSE stream (whose writer task stays in `activeTasks`)
+    /// are left open.
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
         if event is IdleStateHandler.IdleStateEvent {
-            if activeTasks.isEmpty && requestState == nil { context.close(promise: nil) }
+            if activeTasks.isEmpty { requestState = nil; context.close(promise: nil) }
             return
         }
         context.fireUserInboundEventTriggered(event)
