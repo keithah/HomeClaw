@@ -30,6 +30,20 @@ private actor ImmediateRegistry: MCPToolRegistry {
     var callNames: [String] { calls.map(\.name) }
 }
 
+/// Sends a tools/call and reports only whether it succeeded. File-scope on
+/// purpose: Tasks in the tests call this instead of `Self.call`, because the
+/// Xcode 26 region-based isolation checker rejects Task closures that capture
+/// the XCTestCase subclass's dynamic `Self` (it does not on Xcode 27).
+fileprivate func toolCallSucceeds(_ server: MCPServer, headers: [String: String], _ name: String, id: Int = 7) async throws -> Bool {
+    let body = try JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "id": id, "method": "tools/call", "params": ["name": name, "arguments": [String: String]()]])
+    let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: body))
+    guard response.statusCode == 200,
+          let data = response.bodyData,
+          let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return false }
+    return object["error"] == nil
+}
+
 final class StreamableHTTPHardeningTests: XCTestCase {
     private static let jsonHeaders = ["Content-Type": "application/json", "Accept": "application/json, text/event-stream"]
 
@@ -56,13 +70,6 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: body))
         XCTAssertEqual(response.statusCode, 200)
         return try Self.object(response)
-    }
-
-    /// Same as `call`, reduced to a Sendable success flag. Tasks must not carry
-    /// the `[String: Any]` response across their boundary: older compilers'
-    /// region-based isolation checker rejects that pattern (Xcode 26 on CI).
-    private static func callSucceeds(_ server: MCPServer, headers: [String: String], _ name: String, id: Int = 7) async throws -> Bool {
-        try await call(server, headers: headers, name, id: id)["error"] == nil
     }
 
     /// Polls until the predicate holds (bounded to ~2s).
@@ -290,7 +297,7 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         XCTAssertTrue(calls.isEmpty, "Nothing may park waiting for HomeKit")
 
         await server.updateHomeKitReady(true)
-        let pending = Task { try await Self.callSucceeds(server, headers: headers, "homekit_rooms") }
+        let pending = Task { try await toolCallSucceeds(server, headers: headers, "homekit_rooms") }
         try await Self.eventually { let calls = await registry.calls; return !(calls.isEmpty) }
         let after = await registry.calls
         XCTAssertEqual(after, ["homekit_rooms"])
@@ -322,15 +329,15 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         let registry = GateRegistry()
         let server = MCPServer(configuration: HTTPMCPConfiguration(maxConcurrentToolCalls: 2), homeKitReady: true, toolRegistry: registry)
         let (headers, _) = try await Self.open(server)
-        let first = Task { try await Self.callSucceeds(server, headers: headers, "homekit_status", id: 1) }
-        let second = Task { try await Self.callSucceeds(server, headers: headers, "homekit_status", id: 2) }
+        let first = Task { try await toolCallSucceeds(server, headers: headers, "homekit_status", id: 1) }
+        let second = Task { try await toolCallSucceeds(server, headers: headers, "homekit_status", id: 2) }
         try await Self.eventually { let calls = await registry.calls; return !(calls.count < 2) }
         let busy = try await Self.call(server, headers: headers, "homekit_status", id: 3)
         XCTAssertEqual((busy["error"] as? [String: Any])?["code"] as? Int, -32003)
         await registry.releaseAll()
         _ = try await first.value; _ = try await second.value
         // Capacity is returned once calls finish.
-        let later = Task { try await Self.callSucceeds(server, headers: headers, "homekit_status", id: 4) }
+        let later = Task { try await toolCallSucceeds(server, headers: headers, "homekit_status", id: 4) }
         try await Self.eventually { let calls = await registry.calls; return !(calls.count < 3) }
         await registry.releaseAll()
         let succeeded = try await later.value
