@@ -1,7 +1,12 @@
 import Foundation
 
-/// Canonical MCP tool registration shared by native HTTP and stdio clients.
-/// HTTP applies an explicit read-only allowlist; stdio retains the full tool set.
+/// In-process MCP tool descriptors and handlers for the native HTTP transport.
+///
+/// Only HTTP dispatches through here, and it exposes just the subset allowed by
+/// `HTTPToolPolicy.readOnly`. The stdio MCP server does not use this type: it
+/// runs Node's `lib/handlers`, which shell out to `homeclaw-cli`, which talks to
+/// the app over the control socket. The descriptors below mirror
+/// `lib/schemas.js` so both transports advertise the same schemas.
 enum ToolHandlers {
     // Generated from lib/schemas.js; reviewed as plain JSON.
     // Check/regenerate: node scripts/check-mcp-schema-parity.mjs [--write]
