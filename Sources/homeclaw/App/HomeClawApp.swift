@@ -18,6 +18,7 @@ class HomeClawApp: UIResponder, UIApplicationDelegate, Mac2iOS {
     private var menuDataObserver: NSObjectProtocol?
     private var webhookCircuitObserver: NSObjectProtocol?
     private lazy var mcpServer = MCPServer()
+    private var homeKitStatusSequence: UInt64 = 0
     private(set) lazy var httpIntegration = makeHTTPIntegration()
 
     private func makeHTTPIntegration() -> HTTPIntegrationLifecycle {
@@ -238,12 +239,16 @@ class HomeClawApp: UIResponder, UIApplicationDelegate, Mac2iOS {
         ) { [weak self] notification in
             let ready = notification.userInfo?["ready"] as? Bool ?? false
             let names = notification.userInfo?["homeNames"] as? [String] ?? []
-            Task { [weak self] in
+            MainActor.assumeIsolated {
+                // The menu bar updates synchronously, in notification order.
+                self?.macOSController?.updateStatus(ready: ready, homeNames: names)
+                // The HTTP listener's readiness hop is fire-and-forget: it must
+                // never delay or reorder the menu bar update above.
+                // A sequence number keeps racing Tasks from applying a stale state.
                 guard let self else { return }
-                await self.mcpServer.updateHomeKitReady(ready)
-                await MainActor.run {
-                    self.macOSController?.updateStatus(ready: ready, homeNames: names)
-                }
+                self.homeKitStatusSequence &+= 1
+                let server = self.mcpServer, sequence = self.homeKitStatusSequence
+                Task { await server.updateHomeKitReady(ready, sequence: sequence) }
             }
         }
 
