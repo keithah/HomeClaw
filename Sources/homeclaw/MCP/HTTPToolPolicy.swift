@@ -18,11 +18,21 @@ struct HTTPToolPolicy: Sendable {
         case allowlist(Set<String>, defaultAction: String)
     }
 
+    /// How the HTTP copy of a descriptor differs from the canonical one, so
+    /// clients are not told about actions or parameters HTTP rejects. The
+    /// canonical (stdio) descriptors are never modified.
+    struct DescriptorOverride: Sendable, Equatable {
+        var description: String?
+        var removedProperties: Set<String> = []
+        var propertyDescriptions: [String: String] = [:]
+    }
+
     struct Rule: Sendable, Equatable {
         let actions: Actions
         /// Whether the handler waits on HomeKit. Such calls are refused while
         /// HomeKit is not ready instead of parking on `waitForReady()`.
         let requiresHomeKit: Bool
+        var descriptor: DescriptorOverride? = nil
     }
 
     let rules: [String: Rule]
@@ -30,7 +40,13 @@ struct HTTPToolPolicy: Sendable {
     /// The read-only surface: no tool or action that mutates HomeKit or config.
     static let readOnly = HTTPToolPolicy(rules: [
         "homekit_status": Rule(actions: .none, requiresHomeKit: false),
-        "homekit_accessories": Rule(actions: .allowlist(["list", "get", "search"], defaultAction: "list"), requiresHomeKit: true),
+        "homekit_accessories": Rule(
+            actions: .allowlist(["list", "get", "search"], defaultAction: "list"),
+            requiresHomeKit: true,
+            descriptor: DescriptorOverride(
+                description: "Read HomeKit accessories: list all, get details, or search by name/room/category. Read-only over this transport; control is not available. Returns only accessories visible under the current filter configuration. Defaults to configured home if home_id not specified.",
+                removedProperties: ["characteristic", "value", "service_type", "service_name", "service_id", "service_index", "verify"],
+                propertyDescriptions: ["accessory_id": "Accessory UUID or name (get action)"])),
         "homekit_rooms": Rule(actions: .none, requiresHomeKit: true),
         "homekit_device_map": Rule(actions: .none, requiresHomeKit: true),
         "homekit_events": Rule(actions: .none, requiresHomeKit: false),
@@ -47,26 +63,51 @@ struct HTTPToolPolicy: Sendable {
             let schema = tool["inputSchema"] as? [String: Any]
             let properties = schema?["properties"] as? [String: Any]
             let action = properties?["action"] as? [String: Any]
-            switch rule.actions {
-            case .none:
-                return action == nil ? tool : nil
-            case .allowlist(let allowed, _):
-                guard var schema, var properties, var action else {
-                    // An allowlisted tool must advertise its action enum; a
-                    // schema without one means the descriptors have drifted.
-                    return nil
-                }
-                guard let actions = action["enum"] as? [String] else { return nil }
-                let narrowed = actions.filter(allowed.contains)
-                guard !narrowed.isEmpty else { return nil }
-                action["enum"] = narrowed
-                properties["action"] = action
-                schema["properties"] = properties
-                var filtered = tool
-                filtered["inputSchema"] = schema
-                return filtered
-            }
+            guard let filtered = narrowActions(of: tool, rule: rule, schema: schema, properties: properties, action: action) else { return nil }
+            return applying(rule.descriptor, to: filtered)
         }
+    }
+
+    private func narrowActions(of tool: [String: Any], rule: Rule, schema: [String: Any]?, properties: [String: Any]?, action: [String: Any]?) -> [String: Any]? {
+        switch rule.actions {
+        case .none:
+            return action == nil ? tool : nil
+        case .allowlist(let allowed, _):
+            guard var schema, var properties, var action else {
+                // An allowlisted tool must advertise its action enum; a
+                // schema without one means the descriptors have drifted.
+                return nil
+            }
+            guard let actions = action["enum"] as? [String] else { return nil }
+            let narrowed = actions.filter(allowed.contains)
+            guard !narrowed.isEmpty else { return nil }
+            action["enum"] = narrowed
+            properties["action"] = action
+            schema["properties"] = properties
+            var filtered = tool
+            filtered["inputSchema"] = schema
+            return filtered
+        }
+    }
+
+    private func applying(_ override: DescriptorOverride?, to tool: [String: Any]) -> [String: Any] {
+        guard let override else { return tool }
+        var tool = tool
+        if let description = override.description { tool["description"] = description }
+        if var schema = tool["inputSchema"] as? [String: Any], var properties = schema["properties"] as? [String: Any] {
+            override.removedProperties.forEach { properties.removeValue(forKey: $0) }
+            for (name, text) in override.propertyDescriptions {
+                guard var property = properties[name] as? [String: Any] else { continue }
+                property["description"] = text
+                properties[name] = property
+            }
+            schema["properties"] = properties
+            if let required = schema["required"] as? [String] {
+                schema["required"] = required.filter { !override.removedProperties.contains($0) }
+            }
+            tool["inputSchema"] = schema
+        }
+        return tool
     }
 
     /// Whether a `tools/call` for this tool and these arguments is allowed.
