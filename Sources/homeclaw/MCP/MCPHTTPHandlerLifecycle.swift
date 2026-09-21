@@ -1,4 +1,5 @@
 import Foundation
+@preconcurrency import NIOCore
 
 /// A per-channel FIFO gate for HTTP/1.1 response writes.
 ///
@@ -118,5 +119,74 @@ final class MCPHTTPHandlerLifecycle {
               !activeSSESessionIDs.contains(sessionID),
               !taskSessions.values.contains(where: { $0 == sessionID }) else { return }
         activeSessionIDs.remove(sessionID)
+    }
+}
+
+/// Server-wide bookkeeping shared by every child channel of one listener.
+///
+/// It enforces the concurrent-connection cap and records every request task so
+/// `MCPServer.stop()` can close the connections and wait for in-flight work to
+/// drain *before* shutting the event loop group down. Without that drain, a
+/// task finishing after shutdown would call `eventLoop.execute` on a dead loop,
+/// which SwiftNIO reports as an error today and will turn into a crash.
+final class MCPHTTPConnectionTracker: @unchecked Sendable {
+    private let lock = NSLock()
+    private let maxConnections: Int
+    private var channels: [ObjectIdentifier: Channel] = [:]
+    private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var finishedBeforeTracking: Set<UUID> = []
+    private var isShutDown = false
+
+    init(maxConnections: Int = .max) { self.maxConnections = maxConnections }
+
+    var connectionCount: Int { lock.lock(); defer { lock.unlock() }; return channels.count }
+    var taskCount: Int { lock.lock(); defer { lock.unlock() }; return tasks.count }
+
+    /// Admits a new child channel, or returns false when the cap is reached or
+    /// the listener is shutting down. Admitted channels release themselves on close.
+    func admit(_ channel: Channel) -> Bool {
+        let key = ObjectIdentifier(channel)
+        lock.lock()
+        guard !isShutDown, channels.count < maxConnections else { lock.unlock(); return false }
+        channels[key] = channel
+        lock.unlock()
+        channel.closeFuture.whenComplete { [weak self] _ in
+            guard let self else { return }
+            self.lock.lock(); self.channels.removeValue(forKey: key); self.lock.unlock()
+        }
+        return true
+    }
+
+    func track(_ id: UUID, _ task: Task<Void, Never>) {
+        lock.lock(); defer { lock.unlock() }
+        if finishedBeforeTracking.remove(id) != nil { return }
+        tasks[id] = task
+    }
+
+    func finish(_ id: UUID) {
+        lock.lock(); defer { lock.unlock() }
+        if tasks.removeValue(forKey: id) == nil { finishedBeforeTracking.insert(id) }
+    }
+
+    /// Stops admitting connections, closes every open one (which cancels their
+    /// request tasks via `channelInactive`), and waits for tracked tasks to end.
+    func shutdown() async {
+        for channel in beginShutdown() { channel.close(promise: nil) }
+        // Each task untracks itself in its final `defer`, so once its value is
+        // available it is gone; loop to catch tasks that started meanwhile.
+        while case let pending = pendingTasks(), !pending.isEmpty {
+            for task in pending { task.cancel(); await task.value }
+        }
+    }
+
+    private func beginShutdown() -> [Channel] {
+        lock.lock(); defer { lock.unlock() }
+        isShutDown = true
+        return Array(channels.values)
+    }
+
+    private func pendingTasks() -> [Task<Void, Never>] {
+        lock.lock(); defer { lock.unlock() }
+        return Array(tasks.values)
     }
 }

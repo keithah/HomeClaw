@@ -19,14 +19,14 @@ private actor SuspendedOwnershipRegistry: MCPToolRegistry {
 /// The registry is controlled and never reaches HomeKit; no listener is bound.
 final class MCPHTTPChannelOwnershipTests: XCTestCase {
     private func session(_ server: MCPServer) async throws -> String {
-        let id = await server.sessionStore.create()
-        return try XCTUnwrap(id)
+        let created = await server.sessionStore.create()
+        return try XCTUnwrap(created?.id)
     }
 
     private func headers(_ session: String, stream: Bool = true) -> HTTPHeaders {
         HTTPHeaders([("Host", "127.0.0.1"), ("Accept", stream ? "text/event-stream" : "application/json"),
                      ("Content-Type", "application/json"), ("Mcp-Session-Id", session),
-                     ("MCP-Protocol-Version", MCPServer.supportedProtocolVersion)])
+                     ("MCP-Protocol-Version", MCPServer.latestProtocolVersion)])
     }
 
     private func channel(_ server: MCPServer) async throws -> NIOAsyncTestingChannel {

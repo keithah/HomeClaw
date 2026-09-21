@@ -157,7 +157,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let server = MCPServer()
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
-        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]) { _, new in new }
+        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]) { _, new in new }
         let request = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"notifications/custom\",\"params\":{}}".utf8)
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: request))
         XCTAssertEqual(response.statusCode, 200)
@@ -168,17 +168,28 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         XCTAssertNil(notificationResponse.bodyData)
     }
 
-    func testNonInitializeRequiresSupportedProtocolVersion() async throws {
+    func testNonInitializeValidatesProtocolVersionHeader() async throws {
         let server = MCPServer()
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
         let body = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}".utf8)
         let base = jsonHeaders.merging(["Mcp-Session-Id": session]) { _, new in new }
+        // Absent header: the spec lets the server use the version negotiated at initialize.
         let baseResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: base, body: body))
-        XCTAssertEqual(baseResponse.statusCode, 400)
-        let supported = base.merging(["MCP-Protocol-Version": "2025-06-18"]) { _, new in new }
-        let supportedResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: supported, body: body))
-        XCTAssertEqual(supportedResponse.statusCode, 200)
+        XCTAssertEqual(baseResponse.statusCode, 200)
+        for version in MCPServer.supportedProtocolVersions {
+            let supported = base.merging(["MCP-Protocol-Version": version]) { _, new in new }
+            let supportedResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: supported, body: body))
+            XCTAssertEqual(supportedResponse.statusCode, 200, version)
+        }
+        // Present but unsupported or invalid: MUST be 400.
+        for version in ["2025-03-26", "2099-01-01", "garbage", ""] {
+            let bad = base.merging(["MCP-Protocol-Version": version]) { _, new in new }
+            let badResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: bad, body: body))
+            XCTAssertEqual(badResponse.statusCode, 400, version)
+            let get = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": version]))
+            XCTAssertEqual(get.statusCode, 400, "GET \(version)")
+        }
     }
 
     func testWildcardAcceptIsAccepted() async {
@@ -219,7 +230,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
         let request = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"homekit_status\"}}".utf8)
-        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]) { _, new in new }
+        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]) { _, new in new }
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: request))
         XCTAssertTrue(response.bodyString?.contains("timed out") == true)
     }
@@ -229,7 +240,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
         let request = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"homekit_status\"}}".utf8)
-        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]) { _, new in new }
+        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]) { _, new in new }
         let clock = ContinuousClock()
         let start = clock.now
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: request))
@@ -251,7 +262,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
         let request = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}".utf8)
-        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]) { _, new in new }
+        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]) { _, new in new }
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: request))
         XCTAssertTrue(response.bodyString?.contains("homekit_status") == true)
     }
@@ -262,7 +273,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
         let request = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"homekit_status\",\"arguments\":{}}}".utf8)
-        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]) { _, new in new }
+        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]) { _, new in new }
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: request))
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertTrue(response.bodyString?.contains("registered") == true)
@@ -272,7 +283,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let server = MCPServer()
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
-        let headers = ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]
+        let headers = ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]
         let response = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: headers))
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertNotNil(response.stream)
@@ -289,7 +300,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let server = MCPServer()
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
-        let headers = ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]
+        let headers = ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]
 
         let first = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: headers))
         var firstIterator = try XCTUnwrap(first.stream).makeAsyncIterator()
@@ -305,7 +316,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let server = MCPServer()
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
-        let headers = ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]
+        let headers = ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]
         let first = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: headers))
         let second = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: headers))
         let firstOwnership = try XCTUnwrap(first.sseOwnership)
@@ -336,7 +347,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let server = MCPServer()
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
-        let response = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]))
+        let response = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]))
         var iterator = try XCTUnwrap(response.stream).makeAsyncIterator()
         _ = await iterator.next()
 
@@ -352,7 +363,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
         let request = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"homekit_status\",\"arguments\":{}}}".utf8)
-        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]) { _, new in new }
+        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]) { _, new in new }
 
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: request))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(response.bodyData)) as? [String: Any])
@@ -366,7 +377,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
         let request = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"homekit_accessories\",\"arguments\":{\"action\":\"list\"}}}".utf8)
-        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]) { _, new in new }
+        let headers = jsonHeaders.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]) { _, new in new }
 
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: request))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(response.bodyData)) as? [String: Any])
@@ -379,7 +390,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         await server.startExpiryCleanup()
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
-        let response = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]))
+        let response = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]))
         var iterator = try XCTUnwrap(response.stream).makeAsyncIterator()
         _ = await iterator.next()
 
@@ -394,7 +405,7 @@ final class StreamableHTTPReviewRegressionTests: XCTestCase {
         let server = MCPServer(sessionStore: StreamableHTTPSessionStore(ttl: 60))
         let initResponse = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: jsonHeaders, body: initialize))
         let session = try XCTUnwrap(initResponse.header("Mcp-Session-Id"))
-        let response = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]))
+        let response = await server.handleHTTPRequest(HTTPRequest(method: "GET", headers: ["Accept": "text/event-stream", "Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]))
         var iterator = try XCTUnwrap(response.stream).makeAsyncIterator()
         _ = await iterator.next()
 

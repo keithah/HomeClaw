@@ -11,7 +11,8 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     private let maxInflight = HTTPMCPConfiguration.defaultMaxInflightPerChannel
     private let lifecycle = MCPHTTPHandlerLifecycle()
     private let responseOrder = MCPHTTPResponseOrder()
-    init(server: MCPServer) { self.server = server }
+    private let tracker: MCPHTTPConnectionTracker
+    init(server: MCPServer, tracker: MCPHTTPConnectionTracker = MCPHTTPConnectionTracker()) { self.server = server; self.tracker = tracker }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         switch unwrapInboundIn(data) {
@@ -20,7 +21,7 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             let responseTicket = responseOrder.reserve()
             if let length = head.headers.first(name: "Content-Length").flatMap(Int.init), length > maximumBodyBytes {
                 rejectedBody = true; requestState = nil
-                Self.schedule(.error(statusCode: 413, "Request body too large"), version: head.version, on: context.channel, order: responseOrder, ticket: responseTicket)
+                Self.schedule(.error(statusCode: 413, "Request body too large"), version: head.version, on: context.channel, order: responseOrder, ticket: responseTicket, tracker: tracker)
                 return
             }
             requestState = RequestState(head: head, bodyBuffer: context.channel.allocator.buffer(capacity: 0), responseTicket: responseTicket)
@@ -29,7 +30,7 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             guard var state = requestState, buffer.readableBytes <= maximumBodyBytes, state.bodyBuffer.readableBytes + buffer.readableBytes <= maximumBodyBytes else {
                 rejectedBody = true; let version = requestState?.head.version ?? .http1_1; let ticket = requestState?.responseTicket
                 requestState = nil
-                if let ticket { Self.schedule(.error(statusCode: 413, "Request body too large"), version: version, on: context.channel, order: responseOrder, ticket: ticket) }
+                if let ticket { Self.schedule(.error(statusCode: 413, "Request body too large"), version: version, on: context.channel, order: responseOrder, ticket: ticket, tracker: tracker) }
                 return
             }
             state.bodyBuffer.writeBuffer(&buffer); requestState = state
@@ -38,23 +39,30 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             // Bound pipelined work per channel — 1 MiB per request does not bound aggregate
             if activeTasks.count >= maxInflight {
                 let ticket = state.responseTicket; requestState = nil
-                Self.schedule(.error(statusCode: 429, "Too many concurrent requests"), version: state.head.version, on: context.channel, order: responseOrder, ticket: ticket)
+                Self.schedule(.error(statusCode: 429, "Too many concurrent requests"), version: state.head.version, on: context.channel, order: responseOrder, ticket: ticket, tracker: tracker)
                 return
             }
             requestState = nil; let taskID = UUID(); let sessionID = state.head.headers.first(name: "Mcp-Session-Id"); lifecycle.begin(taskID: taskID, sessionID: sessionID)
             let channel = context.channel
             let responseOrder = self.responseOrder
             let responseTicket = state.responseTicket
-            let task = Task { [weak self, server, state, channel, responseOrder, responseTicket] in
+            let tracker = self.tracker
+            let task = Task { [weak self, server, state, channel, responseOrder, responseTicket, tracker] in
                 defer {
                     responseOrder.finish(responseTicket)
                     channel.eventLoop.execute { [weak self] in self?.lifecycle.finish(taskID: taskID); self?.activeTasks.removeValue(forKey: taskID) }
+                    // Last: MCPServer.stop() waits for this before shutting the loop down.
+                    tracker.finish(taskID)
                 }
                 guard channel.isActive, let self else { return }
                 let request = Self.makeHTTPRequest(from: state)
                 let response: HTTPResponse
                 if let host = request.header("Host") {
                     do { try HTTPMCPRequestPolicy.validate(host: host, origin: request.header("Origin"), bindHost: await server.bindHost); response = await server.handleHTTPRequest(request) }
+                    catch HTTPMCPRequestPolicy.ValidationError.invalidOrigin, HTTPMCPRequestPolicy.ValidationError.nonLoopbackOrigin {
+                        // MCP 2025-11-25: an invalid Origin MUST get 403 Forbidden.
+                        response = .error(statusCode: 403, "Forbidden origin")
+                    }
                     catch { response = .error(statusCode: 400, "Invalid request policy") }
                 } else { response = .error(statusCode: 400, "Invalid request policy") }
                 guard !Task.isCancelled, channel.isActive else {
@@ -79,7 +87,19 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 }
             }
             activeTasks[taskID] = task
+            tracker.track(taskID, task)
         }
+    }
+
+    /// Closes a keep-alive connection that has been idle for the configured
+    /// timeout. Connections with an in-flight request or a live SSE stream (whose
+    /// writer task stays in `activeTasks`) are left open.
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if event is IdleStateHandler.IdleStateEvent {
+            if activeTasks.isEmpty && requestState == nil { context.close(promise: nil) }
+            return
+        }
+        context.fireUserInboundEventTriggered(event)
     }
 
     func channelInactive(context: ChannelHandlerContext) {
@@ -103,8 +123,10 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         let body = state.bodyBuffer.readableBytes > 0 ? state.bodyBuffer.getBytes(at: 0, length: state.bodyBuffer.readableBytes).map { Data(bytes: $0) } : nil
         return HTTPRequest(method: state.head.method.rawValue, uri: state.head.uri, headers: normalizedHeaders(from: state.head.headers), body: body)
     }
-    private static func schedule(_ response: HTTPResponse, version: HTTPVersion, on channel: Channel, order: MCPHTTPResponseOrder, ticket: Int) {
-        Task {
+    private static func schedule(_ response: HTTPResponse, version: HTTPVersion, on channel: Channel, order: MCPHTTPResponseOrder, ticket: Int, tracker: MCPHTTPConnectionTracker) {
+        let id = UUID()
+        let task = Task {
+            defer { tracker.finish(id) }
             await order.waitTurn(ticket)
             defer { order.finish(ticket) }
             channel.eventLoop.execute {
@@ -113,6 +135,7 @@ final class MCPHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 channel.writeAndFlush(wrapOutbound(.end(nil)), promise: nil)
             }
         }
+        tracker.track(id, task)
     }
     private static func writeOrdered(_ response: HTTPResponse, version: HTTPVersion, channel: Channel, order: MCPHTTPResponseOrder, ticket: Int) async {
         await order.waitTurn(ticket)

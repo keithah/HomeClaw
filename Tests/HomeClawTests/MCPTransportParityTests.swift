@@ -37,7 +37,7 @@ final class MCPTransportParityTests: XCTestCase {
         // This proves transport/registry wiring, NOT execution of native HomeKit
         // handlers. Even a policy regression can only reach this inert recorder.
         let registry = RecordingParityRegistry()
-        let server = MCPServer(toolRegistry: registry)
+        let server = MCPServer(homeKitReady: true, toolRegistry: registry)
         let headers = try await initialize(server)
         let tools = try await advertisedTools(server, headers: headers)
         XCTAssertFalse(tools.isEmpty)
@@ -96,7 +96,7 @@ final class MCPTransportParityTests: XCTestCase {
         let headers = ["Content-Type": "application/json", "Accept": "application/json"]
         let response = await server.handleHTTPRequest(HTTPRequest(method: "POST", headers: headers, body: body))
         let session = try XCTUnwrap(response.header("Mcp-Session-Id"))
-        return headers.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.supportedProtocolVersion]) { _, value in value }
+        return headers.merging(["Mcp-Session-Id": session, "MCP-Protocol-Version": MCPServer.latestProtocolVersion]) { _, value in value }
     }
 
     private func advertisedTools(_ server: MCPServer, headers: [String: String]) async throws -> [[String: Any]] {

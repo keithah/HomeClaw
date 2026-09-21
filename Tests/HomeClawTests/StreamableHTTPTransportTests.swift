@@ -3,7 +3,7 @@ import XCTest
 
 final class StreamableHTTPTransportTests: XCTestCase {
     private let json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}"
-    private let protocolVersion = MCPServer.supportedProtocolVersion
+    private let protocolVersion = MCPServer.latestProtocolVersion
     private var headers: [String: String] { ["Content-Type": "application/json", "Accept": "application/json"] }
     private func send(_ server: MCPServer, _ request: HTTPRequest) async -> HTTPResponse { await server.handleHTTPRequest(request) }
     private func sessionHeaders(for id: String, accept: String = "application/json") -> [String: String] {
@@ -49,14 +49,34 @@ final class StreamableHTTPTransportTests: XCTestCase {
         let c1 = await server.sessionStore.count; XCTAssertEqual(c1, 0)
     }
 
-    func testSessionCapReturns429() async throws {
+    func testFullSessionStoreEvictsInsteadOfLockingOut() async throws {
         let store = StreamableHTTPSessionStore(ttl: 3600, maxSessions: 1)
         let server = MCPServer(sessionStore: store)
         let first = await send(server, HTTPRequest(method: "POST", headers: headers, body: Data(json.utf8)))
         XCTAssertEqual(first.statusCode, 200)
+        let firstID = try XCTUnwrap(first.header("Mcp-Session-Id"))
         let second = await send(server, HTTPRequest(method: "POST", headers: headers, body: Data(json.utf8)))
-        XCTAssertEqual(second.statusCode, 429)
+        XCTAssertEqual(second.statusCode, 200, "A full store must never lock new clients out")
+        XCTAssertNotNil(second.header("Mcp-Session-Id"))
         let cnt = await store.count; XCTAssertEqual(cnt, 1)
+        // The evicted client gets 404 and, per spec, re-initializes.
+        let list = Data("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}".utf8)
+        let stale = await send(server, HTTPRequest(method: "POST", headers: sessionHeaders(for: firstID), body: list))
+        XCTAssertEqual(stale.statusCode, 404)
+    }
+
+    func testEvictedSessionSSEStreamIsFinished() async throws {
+        let server = MCPServer(sessionStore: StreamableHTTPSessionStore(ttl: 3600, maxSessions: 1))
+        let first = await send(server, HTTPRequest(method: "POST", headers: headers, body: Data(json.utf8)))
+        let firstID = try XCTUnwrap(first.header("Mcp-Session-Id"))
+        let sse = await send(server, HTTPRequest(method: "GET", headers: sessionHeaders(for: firstID, accept: "text/event-stream")))
+        var iterator = try XCTUnwrap(sse.stream).makeAsyncIterator()
+        _ = await iterator.next()
+        // Every session has a live stream, so the oldest is evicted anyway.
+        let second = await send(server, HTTPRequest(method: "POST", headers: headers, body: Data(json.utf8)))
+        XCTAssertEqual(second.statusCode, 200)
+        let finished = await iterator.next()
+        XCTAssertNil(finished, "An evicted session's stream must be closed")
     }
 
     func testRequestsRequireTheirOwnValidSession() async {
