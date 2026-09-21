@@ -58,6 +58,13 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         return try Self.object(response)
     }
 
+    /// Same as `call`, reduced to a Sendable success flag. Tasks must not carry
+    /// the `[String: Any]` response across their boundary: older compilers'
+    /// region-based isolation checker rejects that pattern (Xcode 26 on CI).
+    private static func callSucceeds(_ server: MCPServer, headers: [String: String], _ name: String, id: Int = 7) async throws -> Bool {
+        try await call(server, headers: headers, name, id: id)["error"] == nil
+    }
+
     /// Polls until the predicate holds (bounded to ~2s).
     private static func eventually(_ predicate: @Sendable () async -> Bool) async throws {
         for _ in 0..<400 {
@@ -283,7 +290,7 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         XCTAssertTrue(calls.isEmpty, "Nothing may park waiting for HomeKit")
 
         await server.updateHomeKitReady(true)
-        let pending = Task { _ = try await Self.call(server, headers: headers, "homekit_rooms") }
+        let pending = Task { try await Self.callSucceeds(server, headers: headers, "homekit_rooms") }
         try await Self.eventually { let calls = await registry.calls; return !(calls.isEmpty) }
         let after = await registry.calls
         XCTAssertEqual(after, ["homekit_rooms"])
@@ -315,15 +322,15 @@ final class StreamableHTTPHardeningTests: XCTestCase {
         let registry = GateRegistry()
         let server = MCPServer(configuration: HTTPMCPConfiguration(maxConcurrentToolCalls: 2), homeKitReady: true, toolRegistry: registry)
         let (headers, _) = try await Self.open(server)
-        let first = Task { _ = try await Self.call(server, headers: headers, "homekit_status", id: 1) }
-        let second = Task { _ = try await Self.call(server, headers: headers, "homekit_status", id: 2) }
+        let first = Task { try await Self.callSucceeds(server, headers: headers, "homekit_status", id: 1) }
+        let second = Task { try await Self.callSucceeds(server, headers: headers, "homekit_status", id: 2) }
         try await Self.eventually { let calls = await registry.calls; return !(calls.count < 2) }
         let busy = try await Self.call(server, headers: headers, "homekit_status", id: 3)
         XCTAssertEqual((busy["error"] as? [String: Any])?["code"] as? Int, -32003)
         await registry.releaseAll()
         _ = try await first.value; _ = try await second.value
         // Capacity is returned once calls finish.
-        let later = Task { try await Self.call(server, headers: headers, "homekit_status", id: 4)["error"] == nil }
+        let later = Task { try await Self.callSucceeds(server, headers: headers, "homekit_status", id: 4) }
         try await Self.eventually { let calls = await registry.calls; return !(calls.count < 3) }
         await registry.releaseAll()
         let succeeded = try await later.value
