@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build
-    runs-on: macos-26
+    runs-on: tenki-macos-26-small
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
 
   catalyst:
     name: Catalyst App
-    runs-on: macos-26
+    runs-on: tenki-macos-26-small
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -110,7 +110,7 @@ jobs:
 
   version-check:
     name: Version Consistency
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - uses: actions/checkout@v4
       - uses: omarshahine/version-consistency-action@v1
