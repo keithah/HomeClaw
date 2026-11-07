@@ -17,7 +17,7 @@ jobs:
   build:
     name: Build
     if: github.event_name == 'pull_request'
-    runs-on: macos-26
+    runs-on: tenki-macos-26-small
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -71,6 +71,8 @@ jobs:
     if: github.event_name == 'pull_request'
     # macos-26 carries Xcode 26.x only, so the .xcode-version pin below could
     # never match there; Xcode 27 lives on the xcode-27 image.
+    # Fork: macOS-26 jobs run on Tenki, but no Tenki image carries Xcode 27,
+    # so this job stays on the GitHub-hosted xcode-27 runner.
     runs-on: xcode-27
     steps:
       - name: Checkout
@@ -164,7 +166,7 @@ jobs:
 
   version-check:
     name: Version Consistency
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: omarshahine/version-consistency-action@de358297133489498bca32eaea89a296e9e4a5b0  # v1
